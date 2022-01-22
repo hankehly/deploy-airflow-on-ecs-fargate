@@ -1,0 +1,2 @@
+apache-airflow-providers-amazon==2.4.0
+cryptography==3.4.8

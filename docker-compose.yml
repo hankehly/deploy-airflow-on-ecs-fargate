@@ -1,0 +1,169 @@
+---
+x-airflow-common:
+  &airflow-common
+  build:
+    context: .
+    dockerfile: ./build/dev/Containerfile
+  environment:
+    &airflow-common-env
+    AIRFLOW__API__AUTH_BACKEND: "airflow.api.auth.backend.basic_auth"
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+    # THIS IS A FAKE CREDENTIAL FOR DEMONSTRATION PURPOSES
+    # Generate with the following code
+    # python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key())'
+    AIRFLOW__CORE__FERNET_KEY: "Ly8wMU8r5K7jPy58M3GpkZbXDNyJz8HiJll3pu8DbIM="
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "true"
+    AIRFLOW__CORE__LOAD_DEFAULT_CONNECTIONS: "false"
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@airflow-db/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__WEBSERVER__DAG_DEFAULT_VIEW: "graph"
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+    AIRFLOW__WEBSERVER__RELOAD_ON_PLUGIN_CHANGE: "true"
+    AIRFLOW__WEBSERVER__DAG_ORIENTATION: "TB"
+    AIRFLOW__WEBSERVER__INSTANCE_NAME: "${AIRFLOW__WEBSERVER__INSTANCE_NAME:-deploy-airflow-on-ecs}"
+    AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT: "false"
+    AIRFLOW__LOGGING__LOGGING_CONFIG_CLASS: "deploy_airflow_on_ecs.logging_config.STDOUT_LOGGING_CONFIG"
+    AIRFLOW__LOGGING__TASK_LOG_READER: "stdout"
+    PYTHONPATH: "/opt/airflow/deploy_airflow_on_ecs:$PYTHONPATH"
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./plugins:/opt/airflow/plugins
+    - ./deploy_airflow_on_ecs:/opt/airflow/deploy_airflow_on_ecs
+  user: "50000:0"
+  depends_on:
+    &airflow-common-depends-on
+    redis:
+      condition: service_healthy
+    airflow-db:
+      condition: service_healthy
+
+services:
+  airflow-db:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "airflow" ]
+      interval: 5s
+      retries: 5
+    restart: always
+
+  redis:
+    image: redis:latest
+    expose:
+      - 6379
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 30s
+      retries: 50
+    restart: always
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - 8080:8080
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "--fail",
+          "http://localhost:8080/health"
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"'
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+
+  airflow-worker:
+    <<: *airflow-common
+    command: celery worker
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - 'celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    environment:
+      <<: *airflow-common-env
+      # Required to handle warm shutdown of the celery workers properly
+      # See https://airflow.apache.org/docs/docker-stack/entrypoint.html#signal-propagation
+      DUMB_INIT_SETSID: "0"
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+
+  # AIP-40: Deferrable ("Async") Operators
+  # https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=177050929
+  airflow-triggerer:
+    <<: *airflow-common
+    command: triggerer
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"'
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+
+  airflow-cli:
+    <<: *airflow-common
+    profiles:
+      - debug
+    environment:
+      <<: *airflow-common-env
+      CONNECTION_CHECK_MAX_COUNT: "0"
+    # Workaround for entrypoint issue. See: https://github.com/apache/airflow/issues/16252
+    command:
+      - bash
+      - -c
+      - airflow
+
+  flower:
+    <<: *airflow-common
+    command: celery flower
+    ports:
+      - 5555:5555
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:5555/" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+
+volumes:
+  airflow-db-volume:
