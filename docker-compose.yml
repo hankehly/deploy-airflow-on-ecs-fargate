@@ -22,15 +22,15 @@ x-airflow-common:
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
     AIRFLOW__WEBSERVER__RELOAD_ON_PLUGIN_CHANGE: "true"
     AIRFLOW__WEBSERVER__DAG_ORIENTATION: "TB"
-    AIRFLOW__WEBSERVER__INSTANCE_NAME: "${AIRFLOW__WEBSERVER__INSTANCE_NAME:-deploy-airflow-on-ecs}"
+    AIRFLOW__WEBSERVER__INSTANCE_NAME: "${AIRFLOW__WEBSERVER__INSTANCE_NAME:-deploy-airflow-on-ecs-fargate}"
     AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT: "false"
-    AIRFLOW__LOGGING__LOGGING_CONFIG_CLASS: "deploy_airflow_on_ecs.logging_config.STDOUT_LOGGING_CONFIG"
+    AIRFLOW__LOGGING__LOGGING_CONFIG_CLASS: "deploy_airflow_on_ecs_fargate.logging_config.STDOUT_LOGGING_CONFIG"
     AIRFLOW__LOGGING__TASK_LOG_READER: "stdout"
-    PYTHONPATH: "/opt/airflow/deploy_airflow_on_ecs:$PYTHONPATH"
+    PYTHONPATH: "/opt/airflow/deploy_airflow_on_ecs_fargate:$PYTHONPATH"
   volumes:
     - ./dags:/opt/airflow/dags
     - ./plugins:/opt/airflow/plugins
-    - ./deploy_airflow_on_ecs:/opt/airflow/deploy_airflow_on_ecs
+    - ./deploy_airflow_on_ecs_fargate:/opt/airflow/deploy_airflow_on_ecs_fargate
   user: "50000:0"
   depends_on:
     &airflow-common-depends-on
