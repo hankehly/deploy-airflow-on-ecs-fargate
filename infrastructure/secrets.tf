@@ -1,5 +1,4 @@
 # A secret to hold our core.fernet_key setting for consumption by airflow SecretsManagerBackend
-# eg. redis://:@redis:6379/0
 resource "aws_secretsmanager_secret" "fernet_key" {
   name_prefix = "airflow/config/fernet_key"
 }
