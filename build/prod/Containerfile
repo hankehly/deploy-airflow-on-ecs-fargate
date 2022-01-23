@@ -4,7 +4,7 @@ COPY --chown=airflow:airflow build/requirements/requirements.txt "${AIRFLOW_HOME
 
 COPY --chown=airflow:airflow dags "${AIRFLOW_HOME}/dags"
 COPY --chown=airflow:airflow plugins "${AIRFLOW_HOME}/plugins"
-COPY --chown=airflow:airflow deploy_airflow_on_ecs "${AIRFLOW_HOME}/deploy_airflow_on_ecs"
+COPY --chown=airflow:airflow deploy_airflow_on_ecs_fargate "${AIRFLOW_HOME}/deploy_airflow_on_ecs_fargate"
 COPY --chown=airflow:airflow build/prod/airflow.cfg "${AIRFLOW_HOME}/airflow.cfg"
 
 RUN pip install --upgrade pip \
