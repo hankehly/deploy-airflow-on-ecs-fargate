@@ -1,6 +1,6 @@
 # A registry to push our container images to
 resource "aws_ecr_repository" "airflow" {
-  name = "airflow"
+  name = "deploy-airflow-on-ecs-fargate-airflow"
   image_scanning_configuration {
     scan_on_push = true
   }
