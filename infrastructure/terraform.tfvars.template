@@ -1,0 +1,11 @@
+# Generate via the following
+# python3 -m pip install cryptography
+# python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key())'
+fernet_key = ""
+
+metadata_db {
+  name = "airflow"
+  username = "airflow"
+  password = "airflow"
+  port = 5432
+}
