@@ -1,7 +1,14 @@
 # deploy-airflow-on-ecs-fargate
 An example of how to deploy Apache Airflow on Amazon ECS Fargate
 
-### Procedure
+### Setup local environment
+```
+docker compose up -d
+docker compose run --rm airflow-cli db init
+docker compose run --rm airflow-cli users create --email airflow@example.com --firstname airflow --lastname airflow --password airflow --username airflow --role Admin
+```
+
+### Setup ECS environment
 
 Run terraform plan/apply
 ```shell
