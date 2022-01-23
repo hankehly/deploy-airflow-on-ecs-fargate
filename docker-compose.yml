@@ -6,30 +6,19 @@ x-airflow-common:
     dockerfile: ./build/dev/Containerfile
   environment:
     &airflow-common-env
-    AIRFLOW__API__AUTH_BACKEND: "airflow.api.auth.backend.basic_auth"
-    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
     # THIS IS A FAKE CREDENTIAL FOR DEMONSTRATION PURPOSES
     # Generate with the following code
     # python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key())'
     AIRFLOW__CORE__FERNET_KEY: "Ly8wMU8r5K7jPy58M3GpkZbXDNyJz8HiJll3pu8DbIM="
-    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
-    AIRFLOW__CORE__LOAD_EXAMPLES: "true"
-    AIRFLOW__CORE__LOAD_DEFAULT_CONNECTIONS: "false"
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@airflow-db/airflow
     AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-    AIRFLOW__WEBSERVER__DAG_DEFAULT_VIEW: "graph"
-    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
-    AIRFLOW__WEBSERVER__RELOAD_ON_PLUGIN_CHANGE: "true"
-    AIRFLOW__WEBSERVER__DAG_ORIENTATION: "TB"
     AIRFLOW__WEBSERVER__INSTANCE_NAME: "${AIRFLOW__WEBSERVER__INSTANCE_NAME:-deploy-airflow-on-ecs-fargate}"
-    AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT: "false"
-    AIRFLOW__LOGGING__LOGGING_CONFIG_CLASS: "deploy_airflow_on_ecs_fargate.logging_config.STDOUT_LOGGING_CONFIG"
-    AIRFLOW__LOGGING__TASK_LOG_READER: "stdout"
     PYTHONPATH: "/opt/airflow/deploy_airflow_on_ecs_fargate:$PYTHONPATH"
   volumes:
     - ./dags:/opt/airflow/dags
     - ./plugins:/opt/airflow/plugins
+    - ./build/dev/airflow.cfg:/opt/airflow/airflow.cfg
     - ./deploy_airflow_on_ecs_fargate:/opt/airflow/deploy_airflow_on_ecs_fargate
   user: "50000:0"
   depends_on:
