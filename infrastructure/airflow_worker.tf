@@ -54,7 +54,7 @@ resource "aws_ecs_task_definition" "airflow_worker" {
   container_definitions = jsonencode([
     {
       name   = "worker"
-      image  = "TODO"
+      image  = aws_ecr_repository.airflow.repository_url
       cpu    = 2048
       memory = 4096
       healthcheck = {

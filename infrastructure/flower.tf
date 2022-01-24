@@ -101,7 +101,7 @@ resource "aws_ecs_task_definition" "flower" {
   container_definitions = jsonencode([
     {
       name   = "flower"
-      image  = "TODO"
+      image  = aws_ecr_repository.airflow.repository_url
       cpu    = 1024
       memory = 2048
       portMappings = [
