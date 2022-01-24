@@ -17,6 +17,12 @@ resource "aws_iam_role" "flower_task" {
   })
 }
 
+# Allow flower to read SecretManager secrets
+resource "aws_iam_role_policy_attachment" "flower_read_secret" {
+  role       = aws_iam_role.flower_task.name
+  policy_arn = aws_iam_policy.secret_manager_read_secret.arn
+}
+
 # A security group to attach to our flower ALB to allow all incoming HTTP requests
 resource "aws_security_group" "flower_alb" {
   name_prefix = "flower-alb"

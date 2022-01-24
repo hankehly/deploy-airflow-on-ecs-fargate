@@ -1,7 +1,6 @@
 # A role to control API permissions on our scheduler tasks.
 # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#task_role_arn
 # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html
-# Todo: Allow access to secrets manager
 resource "aws_iam_role" "airflow_scheduler_task" {
   name_prefix = "airflowSchedulerTask"
   assume_role_policy = jsonencode({
@@ -16,6 +15,12 @@ resource "aws_iam_role" "airflow_scheduler_task" {
       }
     ]
   })
+}
+
+# Allow airflow scheduler to read SecretManager secrets
+resource "aws_iam_role_policy_attachment" "airflow_scheduler_read_secret" {
+  role       = aws_iam_role.airflow_scheduler_task.name
+  policy_arn = aws_iam_policy.secret_manager_read_secret.arn
 }
 
 # Scheduler service security group (no incoming connections)

@@ -17,6 +17,12 @@ resource "aws_iam_role" "airflow_webserver_task" {
   })
 }
 
+# Allow airflow webserver to read SecretManager secrets
+resource "aws_iam_role_policy_attachment" "airflow_webserver_read_secret" {
+  role       = aws_iam_role.airflow_webserver_task.name
+  policy_arn = aws_iam_policy.secret_manager_read_secret.arn
+}
+
 # A security group to attach to our webserver ALB to allow all incoming HTTP requests
 resource "aws_security_group" "airflow_webserver_alb" {
   name_prefix = "airflow-webserver-alb"

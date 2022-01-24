@@ -17,6 +17,12 @@ resource "aws_iam_role" "airflow_worker_task" {
   })
 }
 
+# Allow airflow worker to read SecretManager secrets
+resource "aws_iam_role_policy_attachment" "airflow_worker_read_secret" {
+  role       = aws_iam_role.airflow_worker_task.name
+  policy_arn = aws_iam_policy.secret_manager_read_secret.arn
+}
+
 # Worker service security group (no incoming connections)
 resource "aws_security_group" "airflow_worker_service" {
   name_prefix = "airflow-worker"
