@@ -88,7 +88,7 @@ resource "aws_lb_listener" "flower" {
 
 # Direct flower logs to this Cloud Watch log group
 resource "aws_cloudwatch_log_group" "flower" {
-  name_prefix = "flower"
+  name_prefix = "deploy-airflow-on-ecs-fargate/flower/"
 }
 
 # Flower task definition

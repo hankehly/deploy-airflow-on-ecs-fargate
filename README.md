@@ -10,10 +10,9 @@ docker compose run --rm airflow-cli users create --email airflow@example.com --f
 
 ### Setup ECS environment
 
-Run terraform plan/apply
+Create the ECR repo first
 ```shell
-make terraform-plan
-make terraform-apply
+terraform -chdir infrastructure apply -t aws_ecr_repository.airflow
 ```
 
 Authenticate container build tool with aws
@@ -23,10 +22,23 @@ aws ecr get-login-password --region {region} | (docker/podman) login --username 
 
 Build and push the image
 ```shell
-REPO_URI={account}.dkr.ecr.{region}.amazonaws.com/deploy-airflow-on-ecs-fargate-airflow make build-prod-airflow-image
+export REPO_URI="{account}.dkr.ecr.{region}.amazonaws.com/deploy-airflow-on-ecs-fargate-airflow"
+make build-prod-airflow-image
 docker push $REPO_URI
+```
+
+Run terraform plan/apply
+```shell
+make terraform-plan
+make terraform-apply
 ```
 
 Notes:
 - [Enabling ecs-exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html)
 - I use `name_prefix` to avoid name collisions with other AWS resources in global namespaces (like security groups, IAM roles, etc..)
+
+### Todo
+- Document directory structure
+- Describe technical decisions / tradeoffs
+- Add infrastructure diagram
+- Add development, deployment tips (eg. how to manage image versions, etc..)

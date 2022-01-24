@@ -38,7 +38,7 @@ resource "aws_security_group" "airflow_scheduler_service" {
 
 # Direct scheduler logs to this Cloud Watch log group
 resource "aws_cloudwatch_log_group" "airflow_scheduler" {
-  name_prefix = "airflow-scheduler"
+  name_prefix = "deploy-airflow-on-ecs-fargate/airflow-scheduler/"
 }
 
 # Scheduler service task definition
