@@ -65,9 +65,10 @@ resource "aws_lb_target_group" "flower" {
   target_type = "ip"
   vpc_id      = aws_vpc.main.id
   health_check {
-    enabled             = true
-    path                = "/"
-    interval            = 10
+    enabled = true
+    path    = "/"
+    # Gotcha: interval must be greater than timeout
+    interval            = 30
     timeout             = 10
     unhealthy_threshold = 5
   }

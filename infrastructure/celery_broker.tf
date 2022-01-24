@@ -43,4 +43,5 @@ resource "aws_elasticache_cluster" "airflow" {
   engine_version     = "6.x"
   port               = 6379
   security_group_ids = [aws_security_group.airflow_worker_broker.id]
+  subnet_group_name  = aws_elasticache_subnet_group.airflow.name
 }

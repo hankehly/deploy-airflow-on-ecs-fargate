@@ -63,7 +63,6 @@ resource "aws_secretsmanager_secret_version" "result_backend" {
 
 resource "aws_iam_policy" "secret_manager_read_secret" {
   name        = "secretManagerReadSecret"
-  path        = "/"
   description = "Grants read, list and describe permissions on SecretManager secrets"
   policy = jsonencode({
     Version = "2012-10-17"

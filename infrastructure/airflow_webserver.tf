@@ -66,9 +66,10 @@ resource "aws_lb_target_group" "airflow_webserver" {
   target_type = "ip"
   vpc_id      = aws_vpc.main.id
   health_check {
-    enabled             = true
-    path                = "/health"
-    interval            = 10
+    enabled = true
+    path    = "/health"
+    # Gotcha: interval must be greater than timeout
+    interval            = 30
     timeout             = 10
     unhealthy_threshold = 5
   }
@@ -107,7 +108,7 @@ resource "aws_ecs_task_definition" "airflow_webserver" {
   requires_compatibilities = ["FARGATE"]
   container_definitions = jsonencode([
     {
-      name   = "scheduler"
+      name   = "webserver"
       image  = join(":", [aws_ecr_repository.airflow.repository_url, "latest"])
       cpu    = 1024
       memory = 2048
