@@ -60,7 +60,7 @@ resource "aws_ecs_task_definition" "airflow_worker" {
   container_definitions = jsonencode([
     {
       name   = "worker"
-      image  = aws_ecr_repository.airflow.repository_url
+      image  = join(":", [aws_ecr_repository.airflow.repository_url, "latest"])
       cpu    = 2048
       memory = 4096
       healthcheck = {
@@ -128,5 +128,5 @@ resource "aws_ecs_service" "airflow_worker" {
   scheduling_strategy = "REPLICA"
   # This can be used to update tasks to use a newer container image with same
   # image/tag combination (e.g., myimage:latest)
-  # force_new_deployment = true
+  force_new_deployment = true
 }

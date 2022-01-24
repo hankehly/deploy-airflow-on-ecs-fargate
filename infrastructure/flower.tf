@@ -107,7 +107,7 @@ resource "aws_ecs_task_definition" "flower" {
   container_definitions = jsonencode([
     {
       name   = "flower"
-      image  = aws_ecr_repository.airflow.repository_url
+      image  = join(":", [aws_ecr_repository.airflow.repository_url, "latest"])
       cpu    = 1024
       memory = 2048
       portMappings = [
@@ -204,5 +204,5 @@ resource "aws_ecs_service" "flower" {
   }
   # This can be used to update tasks to use a newer container image with same
   # image/tag combination (e.g., myimage:latest)
-  # force_new_deployment = true
+  force_new_deployment = true
 }
