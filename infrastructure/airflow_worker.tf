@@ -38,7 +38,8 @@ resource "aws_security_group" "airflow_worker_service" {
 
 # Direct worker logs to this Cloud Watch log group
 resource "aws_cloudwatch_log_group" "airflow_worker" {
-  name_prefix = "deploy-airflow-on-ecs-fargate/airflow-worker/"
+  name_prefix       = "deploy-airflow-on-ecs-fargate/airflow-worker/"
+  retention_in_days = 3
 }
 
 # Worker service task definition

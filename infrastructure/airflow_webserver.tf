@@ -89,7 +89,8 @@ resource "aws_lb_listener" "airflow_webserver" {
 
 # Direct webserver logs to this Cloud Watch log group
 resource "aws_cloudwatch_log_group" "airflow_webserver" {
-  name_prefix = "deploy-airflow-on-ecs-fargate/airflow-webserver/"
+  name_prefix       = "deploy-airflow-on-ecs-fargate/airflow-webserver/"
+  retention_in_days = 3
 }
 
 # Webserver task definition
