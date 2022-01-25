@@ -67,8 +67,8 @@ services:
           "--fail",
           "http://localhost:8080/health"
         ]
-      interval: 10s
-      timeout: 10s
+      interval: 35s
+      timeout: 30s
       retries: 5
     restart: always
     depends_on:
@@ -83,8 +83,8 @@ services:
           "CMD-SHELL",
           'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"'
         ]
-      interval: 10s
-      timeout: 10s
+      interval: 35s
+      timeout: 30s
       retries: 5
     restart: always
     depends_on:
@@ -97,8 +97,8 @@ services:
       test:
         - "CMD-SHELL"
         - 'celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
-      interval: 10s
-      timeout: 10s
+      interval: 35s
+      timeout: 30s
       retries: 5
     environment:
       <<: *airflow-common-env
@@ -120,8 +120,8 @@ services:
           "CMD-SHELL",
           'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"'
         ]
-      interval: 10s
-      timeout: 10s
+      interval: 35s
+      timeout: 30s
       retries: 5
     restart: always
     depends_on:
@@ -147,8 +147,8 @@ services:
       - 5555:5555
     healthcheck:
       test: [ "CMD", "curl", "--fail", "http://localhost:5555/" ]
-      interval: 10s
-      timeout: 10s
+      interval: 35s
+      timeout: 30s
       retries: 5
     restart: always
     depends_on:

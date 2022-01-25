@@ -67,8 +67,8 @@ resource "aws_ecs_task_definition" "airflow_scheduler" {
           "CMD-SHELL",
           "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""
         ]
-        interval = 10
-        timeout  = 10
+        interval = 35
+        timeout  = 30
         retries  = 5
       }
       essential = true

@@ -69,8 +69,8 @@ resource "aws_ecs_task_definition" "airflow_worker" {
           "CMD-SHELL",
           "celery --app airflow.executors.celery_executor.app inspect ping -d \"celery@$${HOSTNAME}\""
         ]
-        interval = 10
-        timeout  = 10
+        interval = 35
+        timeout  = 30
         retries  = 5
       }
       essential = true

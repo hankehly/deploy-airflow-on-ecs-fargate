@@ -125,8 +125,8 @@ resource "aws_ecs_task_definition" "flower" {
           "--fail",
           "http://localhost:5555/"
         ]
-        interval = 10
-        timeout  = 10
+        interval = 35
+        timeout  = 30
         retries  = 5
       }
       essential = true

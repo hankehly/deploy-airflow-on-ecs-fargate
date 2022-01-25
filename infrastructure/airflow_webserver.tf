@@ -126,8 +126,8 @@ resource "aws_ecs_task_definition" "airflow_webserver" {
           "--fail",
           "http://localhost:8080/health"
         ]
-        interval = 10
-        timeout  = 10
+        interval = 35
+        timeout  = 30
         retries  = 5
       }
       essential = true
