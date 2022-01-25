@@ -9,3 +9,5 @@ COPY --chown=airflow:airflow build/prod/airflow.cfg "${AIRFLOW_HOME}/airflow.cfg
 
 RUN pip install --upgrade pip \
   && pip install --no-cache-dir -r requirements.txt -c "https://raw.githubusercontent.com/apache/airflow/constraints-2.2.3/constraints-3.9.txt"
+
+ENV PYTHONPATH="${AIRFLOW_HOME}/deploy_airflow_on_ecs_fargate:${PYTHONPATH}"
