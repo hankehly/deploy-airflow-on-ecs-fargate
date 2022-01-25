@@ -15,12 +15,7 @@ resource "aws_secretsmanager_secret" "broker_url" {
 }
 resource "aws_secretsmanager_secret_version" "broker_url" {
   secret_id = aws_secretsmanager_secret.broker_url.id
-  secret_string = jsonencode([
-    { "conn_type" : "redis" },
-    { "host" : aws_elasticache_cluster.airflow.cache_nodes[0].address },
-    { "port" : aws_elasticache_cluster.airflow.cache_nodes[0].port },
-    { "schema" : "0" }
-  ])
+  secret_string = "redis://:@${aws_elasticache_cluster.airflow.cache_nodes[0].address}:${aws_elasticache_cluster.airflow.cache_nodes[0].port}/0"
 }
 
 # A secret to hold our core.sql_alchemy_conn setting for consumption by airflow SecretsManagerBackend
@@ -34,14 +29,7 @@ resource "aws_secretsmanager_secret" "sql_alchemy_conn" {
 }
 resource "aws_secretsmanager_secret_version" "sql_alchemy_conn" {
   secret_id = aws_secretsmanager_secret.sql_alchemy_conn.id
-  secret_string = jsonencode([
-    { "conn_type" : "postgresql+psycopg2" },
-    { "login" : aws_db_instance.airflow_metadata_db.username },
-    { "password" : aws_db_instance.airflow_metadata_db.password },
-    { "host" : aws_db_instance.airflow_metadata_db.address },
-    { "port" : aws_db_instance.airflow_metadata_db.port },
-    { "schema" : aws_db_instance.airflow_metadata_db.name }
-  ])
+  secret_string = "postgresql+psycopg2://${aws_db_instance.airflow_metadata_db.username}:${aws_db_instance.airflow_metadata_db.password}@${aws_db_instance.airflow_metadata_db.address}:${aws_db_instance.airflow_metadata_db.port}/${aws_db_instance.airflow_metadata_db.name}"
 }
 
 
@@ -52,14 +40,7 @@ resource "aws_secretsmanager_secret" "result_backend" {
 }
 resource "aws_secretsmanager_secret_version" "result_backend" {
   secret_id = aws_secretsmanager_secret.result_backend.id
-  secret_string = jsonencode([
-    { "conn_type" : "db+postgresql" },
-    { "login" : aws_db_instance.airflow_metadata_db.username },
-    { "password" : aws_db_instance.airflow_metadata_db.password },
-    { "host" : aws_db_instance.airflow_metadata_db.address },
-    { "port" : aws_db_instance.airflow_metadata_db.port },
-    { "schema" : aws_db_instance.airflow_metadata_db.name }
-  ])
+  secret_string = "db+postgresql://${aws_db_instance.airflow_metadata_db.username}:${aws_db_instance.airflow_metadata_db.password}@${aws_db_instance.airflow_metadata_db.address}:${aws_db_instance.airflow_metadata_db.port}/${aws_db_instance.airflow_metadata_db.name}"
 }
 
 resource "aws_iam_policy" "secret_manager_read_secret" {
