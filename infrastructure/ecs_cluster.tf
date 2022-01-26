@@ -1,7 +1,7 @@
 # The ECS cluster that hosts our airflow services
 resource "aws_ecs_cluster" "airflow" {
   name               = "airflow"
-  capacity_providers = ["FARGATE"]
+  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
   setting {
     name  = "containerInsights"
     value = "enabled"

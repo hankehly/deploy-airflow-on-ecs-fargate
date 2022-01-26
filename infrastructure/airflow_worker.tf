@@ -116,7 +116,7 @@ resource "aws_ecs_service" "airflow_worker" {
   }
   deployment_maximum_percent         = 200
   deployment_minimum_healthy_percent = 100
-  desired_count                      = 1
+  desired_count                      = 2
   lifecycle {
     ignore_changes = [desired_count]
   }
@@ -134,4 +134,11 @@ resource "aws_ecs_service" "airflow_worker" {
   # This can be used to update tasks to use a newer container image with same
   # image/tag combination (e.g., myimage:latest)
   force_new_deployment = true
+  capacity_provider_strategy = [
+    {
+      capacity_provider = "FARGATE_SPOT"
+      # 100% of tasks should use fargate spot
+      weight = 1
+    }
+  ]
 }
