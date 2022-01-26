@@ -77,6 +77,10 @@ resource "aws_ecs_task_definition" "airflow_scheduler" {
         {
           name  = "AIRFLOW__WEBSERVER__INSTANCE_NAME"
           value = "deploy-airflow-on-ecs-fargate"
+        },
+        {
+          name  = "X_AIRFLOW_SQS_CELERY_BROKER_PREDEFINED_QUEUE_URL"
+          value = aws_sqs_queue.airflow_worker_broker.url
         }
       ]
       user = "50000:0"

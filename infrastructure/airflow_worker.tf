@@ -81,6 +81,10 @@ resource "aws_ecs_task_definition" "airflow_worker" {
           value = "deploy-airflow-on-ecs-fargate"
         },
         {
+          name  = "X_AIRFLOW_SQS_CELERY_BROKER_PREDEFINED_QUEUE_URL"
+          value = aws_sqs_queue.airflow_worker_broker.url
+        },
+        {
           name  = "DUMB_INIT_SETSID"
           value = "0"
         }
