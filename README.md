@@ -53,6 +53,7 @@ Notes:
 - I use `name_prefix` to avoid name collisions with other AWS resources in global namespaces (like security groups, IAM roles, etc..). This is especially useful for SecretManager, where you must wait at least 7 days before you can fully delete a secret.
 
 ### Todo
+- Create a shell script wrapper around `aws ecs run-task` to run standalone task. Options should be command, cpu, memory, capacityProvider (fargate or fargate spot, etc..)
 - Document directory structure
 - Describe technical decisions / tradeoffs
 - Add infrastructure diagram
