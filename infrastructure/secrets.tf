@@ -1,7 +1,7 @@
 # A secret to hold our core.fernet_key setting for consumption by airflow SecretsManagerBackend
+# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret
 resource "aws_secretsmanager_secret" "fernet_key" {
-  # Gotcha: name must match the value in airflow.cfg, so do not use 'name_prefix'
-  name = "deploy-airflow-on-ecs-fargate/airflow/config/fernet_key"
+  name_prefix = "deploy-airflow-on-ecs-fargate/airflow/config/fernet_key/"
 }
 resource "aws_secretsmanager_secret_version" "fernet_key" {
   secret_id     = aws_secretsmanager_secret.fernet_key.id
@@ -15,7 +15,7 @@ resource "aws_secretsmanager_secret_version" "fernet_key" {
 #  For example it should be named as deploy-airflow-on-ecs-fargate/airflow/config/sql_alchemy_conn
 #  https://airflow.apache.org/docs/apache-airflow/stable/howto/set-config.html
 resource "aws_secretsmanager_secret" "sql_alchemy_conn" {
-  name = "deploy-airflow-on-ecs-fargate/airflow/config/sql_alchemy_conn"
+  name_prefix = "deploy-airflow-on-ecs-fargate/airflow/config/sql_alchemy_conn/"
 }
 resource "aws_secretsmanager_secret_version" "sql_alchemy_conn" {
   secret_id     = aws_secretsmanager_secret.sql_alchemy_conn.id
@@ -26,7 +26,7 @@ resource "aws_secretsmanager_secret_version" "sql_alchemy_conn" {
 # A secret to hold our celery.result_backend setting for consumption by airflow SecretsManagerBackend
 # eg. db+postgresql://airflow:airflow@airflow-db/airflow
 resource "aws_secretsmanager_secret" "celery_result_backend" {
-  name = "deploy-airflow-on-ecs-fargate/airflow/config/celery_result_backend"
+  name_prefix = "deploy-airflow-on-ecs-fargate/airflow/config/celery_result_backend/"
 }
 resource "aws_secretsmanager_secret_version" "celery_result_backend" {
   secret_id     = aws_secretsmanager_secret.celery_result_backend.id

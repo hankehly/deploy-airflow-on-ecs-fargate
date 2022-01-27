@@ -2,12 +2,12 @@ FROM apache/airflow:2.2.3-python3.9
 
 COPY --chown=airflow:airflow build/requirements/requirements.txt "${AIRFLOW_HOME}/requirements.txt"
 
+RUN pip install --upgrade pip \
+  && pip install --no-cache-dir -r requirements.txt -c "https://raw.githubusercontent.com/apache/airflow/constraints-2.2.3/constraints-3.9.txt"
+
 COPY --chown=airflow:airflow dags "${AIRFLOW_HOME}/dags"
 COPY --chown=airflow:airflow plugins "${AIRFLOW_HOME}/plugins"
 COPY --chown=airflow:airflow deploy_airflow_on_ecs_fargate "${AIRFLOW_HOME}/deploy_airflow_on_ecs_fargate"
 COPY --chown=airflow:airflow build/prod/airflow.cfg "${AIRFLOW_HOME}/airflow.cfg"
-
-RUN pip install --upgrade pip \
-  && pip install --no-cache-dir -r requirements.txt -c "https://raw.githubusercontent.com/apache/airflow/constraints-2.2.3/constraints-3.9.txt"
 
 ENV PYTHONPATH="${AIRFLOW_HOME}/deploy_airflow_on_ecs_fargate:${PYTHONPATH}"

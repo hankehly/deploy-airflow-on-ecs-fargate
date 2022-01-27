@@ -35,7 +35,7 @@ make terraform-apply
 
 Notes:
 - [Enabling ecs-exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html)
-- I use `name_prefix` to avoid name collisions with other AWS resources in global namespaces (like security groups, IAM roles, etc..)
+- I use `name_prefix` to avoid name collisions with other AWS resources in global namespaces (like security groups, IAM roles, etc..). This is especially useful for SecretManager, where you must wait at least 7 days before you can fully delete a secret.
 
 ### Todo
 - Document directory structure

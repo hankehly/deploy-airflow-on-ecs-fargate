@@ -37,3 +37,65 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy_attach
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = data.aws_iam_policy.amazon_ecs_task_execution_role_policy.arn
 }
+
+# A role to control API permissions on our airflow service tasks
+# https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#task_role_arn
+# https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html
+resource "aws_iam_role" "airflow_task" {
+  name_prefix = "airflowTask-"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ecs-tasks.amazonaws.com"
+        }
+      },
+    ]
+  })
+}
+
+# Allow airflow tasks to perform operations on SQS queues.
+# The permissions granted here may be more than necessary.
+resource "aws_iam_policy" "airflow_sqs_read_write" {
+  name_prefix = "airflow-sqs-read-write-"
+  path        = "/"
+  description = "Grants read/write permissions on all SQS queues"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:DeleteMessage",
+          "sqs:GetQueueUrl",
+          "sqs:ListQueues",
+          "sqs:ChangeMessageVisibility",
+          "sqs:ReceiveMessage",
+          "sqs:SendMessage",
+          "sqs:GetQueueAttributes",
+          "sqs:ListQueueTags",
+          "sqs:ListDeadLetterSourceQueues",
+          "sqs:PurgeQueue",
+          "sqs:DeleteQueue",
+          "sqs:CreateQueue",
+          "sqs:SetQueueAttributes"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Allow airflow tasks to read SecretManager secrets
+resource "aws_iam_role_policy_attachment" "airflow_read_secret" {
+  role       = aws_iam_role.airflow_task.name
+  policy_arn = aws_iam_policy.secret_manager_read_secret.arn
+}
+
+resource "aws_iam_role_policy_attachment" "airflow_sqs_read_write" {
+  role       = aws_iam_role.airflow_task.name
+  policy_arn = aws_iam_policy.airflow_sqs_read_write.arn
+}

@@ -7,7 +7,9 @@ CELERY_CONFIG = {
     "broker_transport_options": {
         **DEFAULT_CELERY_CONFIG["broker_transport_options"],
         "predefined_queues": {
-            "airflow-worker-broker": {
+            # Gotcha: kombu.transport.SQS.UndefinedQueueException
+            # Queue with name 'default' must be defined in 'predefined_queues'
+            "default": {
                 "url": os.getenv("X_AIRFLOW_SQS_CELERY_BROKER_PREDEFINED_QUEUE_URL")
             },
         },

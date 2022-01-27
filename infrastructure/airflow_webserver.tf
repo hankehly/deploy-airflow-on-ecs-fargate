@@ -1,28 +1,3 @@
-# A role to control API permissions on our webserver tasks.
-# https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#task_role_arn
-# https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html
-resource "aws_iam_role" "airflow_webserver_task" {
-  name_prefix = "airflowWebserverTask"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ecs-tasks.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
-
-# Allow airflow webserver to read SecretManager secrets
-resource "aws_iam_role_policy_attachment" "airflow_webserver_read_secret" {
-  role       = aws_iam_role.airflow_webserver_task.name
-  policy_arn = aws_iam_policy.secret_manager_read_secret.arn
-}
-
 # A security group to attach to our webserver ALB to allow all incoming HTTP requests
 resource "aws_security_group" "airflow_webserver_alb" {
   name_prefix = "airflow-webserver-alb"
@@ -97,10 +72,10 @@ resource "aws_cloudwatch_log_group" "airflow_webserver" {
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_task_definition
 resource "aws_ecs_task_definition" "airflow_webserver" {
   family             = "airflow-webserver"
-  cpu                = 1024
-  memory             = 2048
+  cpu                = 512
+  memory             = 1024
   execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn      = aws_iam_role.airflow_webserver_task.arn
+  task_role_arn      = aws_iam_role.airflow_task.arn
   network_mode       = "awsvpc"
   runtime_platform {
     operating_system_family = "LINUX"
@@ -111,8 +86,8 @@ resource "aws_ecs_task_definition" "airflow_webserver" {
     {
       name   = "webserver"
       image  = join(":", [aws_ecr_repository.airflow.repository_url, "latest"])
-      cpu    = 1024
-      memory = 2048
+      cpu    = 512
+      memory = 1024
       portMappings = [
         {
           containerPort = 8080
@@ -136,6 +111,19 @@ resource "aws_ecs_task_definition" "airflow_webserver" {
         {
           name  = "AIRFLOW__WEBSERVER__INSTANCE_NAME"
           value = "deploy-airflow-on-ecs-fargate"
+        },
+        # Use substr to remove the "config_prefix" string from the secret names
+        {
+          name  = "AIRFLOW__CORE__SQL_ALCHEMY_CONN_SECRET"
+          value = substr(aws_secretsmanager_secret.sql_alchemy_conn.name, 45, -1)
+        },
+        {
+          name  = "AIRFLOW__CORE__FERNET_KEY_SECRET"
+          value = substr(aws_secretsmanager_secret.fernet_key.name, 45, -1)
+        },
+        {
+          name  = "AIRFLOW__CELERY__RESULT_BACKEND_SECRET"
+          value = substr(aws_secretsmanager_secret.celery_result_backend.name, 45, -1)
         },
         {
           name  = "X_AIRFLOW_SQS_CELERY_BROKER_PREDEFINED_QUEUE_URL"
