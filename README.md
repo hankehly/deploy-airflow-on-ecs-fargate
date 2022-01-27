@@ -12,7 +12,8 @@ docker compose run --rm airflow-cli users create --email airflow@example.com --f
 
 Create the ECR repo first
 ```shell
-terraform -chdir infrastructure apply -t aws_ecr_repository.airflow
+# alias for `terraform -chdir infrastructure apply -t aws_ecr_repository.airflow`
+make tf-apply-ecr
 ```
 
 Authenticate container build tool with aws
@@ -29,8 +30,22 @@ docker push $REPO_URI
 
 Run terraform plan/apply
 ```shell
-make terraform-plan
-make terraform-apply
+# alias for `terraform -chdir=infrastructure plan`
+make tf-plan
+# alias for `terraform -chdir=infrastructure apply`
+make tf-apply
+```
+
+Initialize the database
+```
+# fill in subnets / security-groups first
+aws ecs run-task --cli-input-yaml "$(cat tasks/db-init.yaml)"
+```
+
+Add a login user
+```
+# fill in subnets / security-groups first
+aws ecs run-task --cli-input-yaml "$(cat tasks/users-create.yaml)"
 ```
 
 Notes:
