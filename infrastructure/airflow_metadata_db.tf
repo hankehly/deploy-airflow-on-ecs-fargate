@@ -19,7 +19,8 @@ resource "aws_security_group" "airflow_metadata_db" {
     security_groups = [
       aws_security_group.airflow_webserver_service.id,
       aws_security_group.airflow_scheduler_service.id,
-      aws_security_group.airflow_worker_service.id
+      aws_security_group.airflow_worker_service.id,
+      aws_security_group.airflow_standalone_task.id
     ]
   }
   egress {

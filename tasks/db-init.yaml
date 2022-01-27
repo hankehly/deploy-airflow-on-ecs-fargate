@@ -1,0 +1,25 @@
+# Run with:
+# aws ecs run-task --cli-input-yaml "$(cat tasks/db-init.yaml)"
+taskDefinition: "airflow-standalone-task"
+cluster: "airflow"
+count: 1
+capacityProviderStrategy:
+  - capacityProvider: "FARGATE"
+platformVersion: "1.4.0"
+networkConfiguration:
+  awsvpcConfiguration:
+    subnets:
+      - "ADD THIS YOURSELF"
+    securityGroups:
+      - "ADD THIS YOURSELF"
+    assignPublicIp: ENABLED
+# Custom command options
+overrides:
+  containerOverrides:
+    # Gotcha: name must correspond to an existing container name in the standalone task definition
+    - name: "airflow"
+      command: ["db", "init"]
+      cpu: 1024
+      memory: 2048
+  cpu: "1024"
+  memory: "2048"
