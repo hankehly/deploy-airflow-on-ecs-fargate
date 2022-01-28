@@ -14,4 +14,6 @@ CELERY_CONFIG = {
             },
         },
     },
+    # SQS broker is incompatible with remote control commands
+    "worker_enable_remote_control": False,
 }

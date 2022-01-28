@@ -12,7 +12,7 @@ x-airflow-common:
     # python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key())'
     AIRFLOW__CORE__FERNET_KEY: "Ly8wMU8r5K7jPy58M3GpkZbXDNyJz8HiJll3pu8DbIM="
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@airflow-db/airflow
-    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CELERY__BROKER_URL: sqs://user:pass@celery-broker:9324/
     AIRFLOW__WEBSERVER__INSTANCE_NAME: "${AIRFLOW__WEBSERVER__INSTANCE_NAME:-deploy-airflow-on-ecs-fargate}"
     PYTHONPATH: "/opt/airflow/deploy_airflow_on_ecs_fargate:$PYTHONPATH"
   volumes:
@@ -23,8 +23,8 @@ x-airflow-common:
   user: "50000:0"
   depends_on:
     &airflow-common-depends-on
-    redis:
-      condition: service_healthy
+    celery-broker:
+      condition: service_started
     airflow-db:
       condition: service_healthy
 
@@ -43,15 +43,13 @@ services:
       retries: 5
     restart: always
 
-  redis:
-    image: redis:latest
+  # For environment parity, use backend that implements SQS interface
+  # https://github.com/roribio/alpine-sqs
+  celery-broker:
+    image: roribio16/alpine-sqs:latest
     expose:
-      - 6379
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 5s
-      timeout: 30s
-      retries: 50
+      - 9324
+      - 9325
     restart: always
 
   airflow-webserver:
@@ -93,13 +91,15 @@ services:
   airflow-worker:
     <<: *airflow-common
     command: celery worker
-    healthcheck:
-      test:
-        - "CMD-SHELL"
-        - 'celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
-      interval: 35s
-      timeout: 30s
-      retries: 5
+    # SQS does not support worker remote control commands.
+    # This means we can't use the 'ping' command as a healthcheck.
+    # healthcheck:
+    #   test:
+    #     - "CMD-SHELL"
+    #     - 'celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+    #   interval: 35s
+    #   timeout: 30s
+    #   retries: 5
     environment:
       <<: *airflow-common-env
       # Required to handle warm shutdown of the celery workers properly
@@ -139,20 +139,6 @@ services:
       - bash
       - -c
       - airflow
-
-  flower:
-    <<: *airflow-common
-    command: celery flower
-    ports:
-      - 5555:5555
-    healthcheck:
-      test: [ "CMD", "curl", "--fail", "http://localhost:5555/" ]
-      interval: 35s
-      timeout: 30s
-      retries: 5
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
 
 volumes:
   airflow-db-volume:

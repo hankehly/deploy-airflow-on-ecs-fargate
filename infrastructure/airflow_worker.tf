@@ -41,15 +41,6 @@ resource "aws_ecs_task_definition" "airflow_worker" {
       image  = join(":", [aws_ecr_repository.airflow.repository_url, "latest"])
       cpu    = 1024
       memory = 2048
-      healthcheck = {
-        command = [
-          "CMD-SHELL",
-          "celery --app airflow.executors.celery_executor.app inspect ping -d \"celery@$${HOSTNAME}\""
-        ]
-        interval = 35
-        timeout  = 30
-        retries  = 5
-      }
       essential = true
       command   = ["celery", "worker"]
       environment = [
@@ -129,5 +120,50 @@ resource "aws_ecs_service" "airflow_worker" {
     capacity_provider = "FARGATE_SPOT"
     # 100% of tasks should use fargate spot
     weight = 1
+  }
+}
+
+# For this example, we want to save money by scaling to zero at night when we don't need to access the service.
+# Target registration:
+#  https://docs.aws.amazon.com/autoscaling/application/userguide/services-that-can-integrate-ecs.html#integrate-register-ecs
+# Example scaling configurations:
+#  https://docs.aws.amazon.com/autoscaling/application/userguide/examples-scheduled-actions.html
+# ECS scheduled scaling example:
+#  https://aws.amazon.com/blogs/containers/optimizing-amazon-elastic-container-service-for-cost-using-scheduled-scaling/
+resource "aws_appautoscaling_target" "airflow_worker" {
+  max_capacity       = 2
+  min_capacity       = 0
+  resource_id        = "service/${aws_ecs_cluster.airflow.name}/${aws_ecs_service.airflow_worker.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+# Scale to zero at night (21:00 Japan Standard Time)
+resource "aws_appautoscaling_scheduled_action" "airflow_worker_scheduled_scale_in" {
+  name               = "ecs"
+  service_namespace  = aws_appautoscaling_target.airflow_worker.service_namespace
+  resource_id        = aws_appautoscaling_target.airflow_worker.resource_id
+  scalable_dimension = aws_appautoscaling_target.airflow_worker.scalable_dimension
+  # Gotcha: Cron expressions have SIX required fields
+  # https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions
+  schedule = "cron(0 12 * * ? *)"
+  scalable_target_action {
+    min_capacity = 0
+    max_capacity = 0
+  }
+}
+
+# Scale to one during the day (10:00 Japan Standard Time)
+resource "aws_appautoscaling_scheduled_action" "airflow_worker_scheduled_scale_out" {
+  name               = "ecs"
+  service_namespace  = aws_appautoscaling_target.airflow_worker.service_namespace
+  resource_id        = aws_appautoscaling_target.airflow_worker.resource_id
+  scalable_dimension = aws_appautoscaling_target.airflow_worker.scalable_dimension
+  # Gotcha: Cron expressions have SIX required fields
+  # https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions
+  schedule = "cron(0 3 * * ? *)"
+  scalable_target_action {
+    min_capacity = 2
+    max_capacity = 2
   }
 }

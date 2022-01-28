@@ -12,9 +12,11 @@ docker compose run --rm airflow-cli users create --email airflow@example.com --f
 
 Create the ECR repo first
 ```shell
-# alias for `terraform -chdir infrastructure apply -t aws_ecr_repository.airflow`
+# alias for `terraform -chdir=infrastructure apply -target=aws_ecr_repository.airflow`
 make tf-apply-ecr
 ```
+
+Go to the Elastic Container Registry console at `https://console.aws.amazon.com/ecr/repositories?region={region}` and copy the new repository URI.
 
 Authenticate container build tool with aws
 ```shell
@@ -24,11 +26,11 @@ aws ecr get-login-password --region {region} | (docker/podman) login --username 
 Build and push the image
 ```shell
 export REPO_URI="{account}.dkr.ecr.{region}.amazonaws.com/deploy-airflow-on-ecs-fargate-airflow"
-make build-prod-airflow-image
+make build-prod
 docker push $REPO_URI
 ```
 
-Run terraform plan/apply
+Run terraform plan/apply. If you encounter a `ConcurrentUpdateException` saying you already have a pending update to an Auto Scaling resource, just run the apply command again.
 ```shell
 # alias for `terraform -chdir=infrastructure plan`
 make tf-plan
@@ -48,6 +50,42 @@ Add a login user
 aws ecs run-task --cli-input-yaml "$(cat tasks/users-create.yaml)"
 ```
 
+Scale the webserver to zero
+```shell
+# macos
+export TWO_MINUTES_LATER=$(date -u -v+2M '+%Y-%m-%dT%H:%M:00')
+# linux
+export TWO_MINUTES_LATER=$(date -u --date='2 minutes' '+%Y-%m-%dT%H:%M:00')
+
+docker run --rm -v "${HOME}/.aws:/root/.aws" amazon/aws-cli application-autoscaling put-scheduled-action \
+	  --service-namespace ecs \
+	  --scalable-dimension ecs:service:DesiredCount \
+	  --resource-id service/airflow/airflow-webserver \
+	  --scheduled-action-name scale-webserver-to-zero \
+	  --schedule "at(${TWO_MINUTES_LATER})" \
+	  --scalable-target-action MinCapacity=0,MaxCapacity=0
+
+# View the scheduled event
+docker run --rm -it -v ~/.aws:/root/.aws amazon/aws-cli application-autoscaling describe-scheduled-actions \
+  --service-namespace ecs
+#
+#         {
+#             "ScheduledActionName": "single-scalein-action-test",
+#             "ScheduledActionARN": "arn:aws:autoscaling:us-east-1:***:scheduledAction:***:resource/ecs/service/airflow/airflow-webserver:scheduledActionName/single-scalein-action-test",
+#             "ServiceNamespace": "ecs",
+#             "Schedule": "at(2022-01-28T17:19:00)",
+#             "ResourceId": "service/airflow/airflow-webserver",
+#             "ScalableDimension": "ecs:service:DesiredCount",
+#             "ScalableTargetAction": {
+#                 "MinCapacity": 1,
+#                 "MaxCapacity": 1
+#             },
+#             "CreationTime": "2022-01-28T16:50:07.802000+00:00"
+#         }
+#     ]
+# }
+```
+
 Notes:
 - [Enabling ecs-exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html)
 - I use `name_prefix` to avoid name collisions with other AWS resources in global namespaces (like security groups, IAM roles, etc..). This is especially useful for SecretManager, where you must wait at least 7 days before you can fully delete a secret.
@@ -58,3 +96,4 @@ Notes:
 - Describe technical decisions / tradeoffs
 - Add infrastructure diagram
 - Add development, deployment tips (eg. how to manage image versions, etc..)
+```

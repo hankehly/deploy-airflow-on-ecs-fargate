@@ -1,9 +1,14 @@
-build-prod-airflow-image:
+build-dev:
+	@docker compose build
+
+build-prod:
 	@docker buildx build -t "${REPO_URI}" -f build/prod/Containerfile --platform linux/amd64 .
 
-terraform-plan:
+tf-apply-ecr:
+	@terraform -chdir=infrastructure apply -target=aws_ecr_repository.airflow
+
+tf-plan:
 	@terraform -chdir=infrastructure plan
 
-terraform-apply:
+tf-apply:
 	@terraform -chdir=infrastructure apply
-

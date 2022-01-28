@@ -1,6 +1,17 @@
 FROM apache/airflow:2.2.3-python3.9
 
+USER root
+# `apt-get autoremove` is used to remove packages that were automatically installed to satisfy
+# dependencies for other packages and are now no longer needed.
+# `apt-get clean` clears out the local repository of retrieved package files
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends gcc libc6-dev libcurl4-openssl-dev libssl-dev \ 
+  && apt-get autoremove -yqq --purge \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY --chown=airflow:airflow build/requirements/requirements.txt "${AIRFLOW_HOME}/requirements.txt"
 
+USER airflow
 RUN pip install --upgrade pip \
   && pip install --no-cache-dir -r requirements.txt -c "https://raw.githubusercontent.com/apache/airflow/constraints-2.2.3/constraints-3.9.txt"
