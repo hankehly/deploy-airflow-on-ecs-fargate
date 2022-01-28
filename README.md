@@ -50,6 +50,10 @@ Add a login user
 aws ecs run-task --cli-input-yaml "$(cat tasks/users-create.yaml)"
 ```
 
+Find your load balancer DNS name and open the console
+<img width="1563" alt="airflow-home" src="https://user-images.githubusercontent.com/11639738/151594663-0895e62e-2fb3-4a6d-8bd5-98e9d8f1af90.png">
+
+
 Scale the webserver to zero
 ```shell
 # macos
