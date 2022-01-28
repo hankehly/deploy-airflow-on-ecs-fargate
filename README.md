@@ -53,6 +53,23 @@ aws ecs run-task --cli-input-yaml "$(cat tasks/users-create.yaml)"
 Find your load balancer DNS name and open the console
 <img width="1563" alt="airflow-home" src="https://user-images.githubusercontent.com/11639738/151594663-0895e62e-2fb3-4a6d-8bd5-98e9d8f1af90.png">
 
+Get a shell using [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html). [Install the Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) first.
+```
+aws ecs update-service \
+  --cluster airflow \
+  --service airflow-webserver \
+  --task-definition airflow-webserver:{N} \
+  --force-new-deployment \
+  --enable-execute-command
+
+aws ecs execute-command \
+  --cluster airflow \
+  --task {task_id} \
+  --container webserver \
+  --interactive \
+  --command "/bin/bash"
+```
+
 
 Scale the webserver to zero
 ```shell
@@ -91,7 +108,6 @@ docker run --rm -it -v ~/.aws:/root/.aws amazon/aws-cli application-autoscaling 
 ```
 
 Notes:
-- [Enabling ecs-exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html)
 - I use `name_prefix` to avoid name collisions with other AWS resources in global namespaces (like security groups, IAM roles, etc..). This is especially useful for SecretManager, where you must wait at least 7 days before you can fully delete a secret.
 
 ### Todo
