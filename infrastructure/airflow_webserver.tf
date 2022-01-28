@@ -72,8 +72,8 @@ resource "aws_cloudwatch_log_group" "airflow_webserver" {
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_task_definition
 resource "aws_ecs_task_definition" "airflow_webserver" {
   family             = "airflow-webserver"
-  cpu                = 512
-  memory             = 1024
+  cpu                = 1024
+  memory             = 2048
   execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
   task_role_arn      = aws_iam_role.airflow_task.arn
   network_mode       = "awsvpc"
@@ -86,8 +86,8 @@ resource "aws_ecs_task_definition" "airflow_webserver" {
     {
       name   = "webserver"
       image  = join(":", [aws_ecr_repository.airflow.repository_url, "latest"])
-      cpu    = 512
-      memory = 1024
+      cpu    = 1024
+      memory = 2048
       portMappings = [
         {
           containerPort = 8080
