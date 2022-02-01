@@ -1,8 +1,13 @@
 # deploy-airflow-on-ecs-fargate
-An example of how to deploy Apache Airflow on Amazon ECS Fargate
+An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) on Amazon ECS Fargate
 
+### Table of contents
 - [Project structure](#project-structure)
-- [Setup local](#setup-local)
+- [Setup a local development environment](#setup-a-local-development-environment)
+- [Setup an ECS cluster](#setup-an-ecs-cluster)
+- [Autoscaling](#autoscaling)
+- [Standalone Tasks](#standalone-tasks)
+- [Examples](#examples)
 
 ### Project structure
 
