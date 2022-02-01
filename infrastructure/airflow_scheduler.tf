@@ -161,4 +161,8 @@ resource "aws_appautoscaling_scheduled_action" "airflow_scheduler_scheduled_scal
     min_capacity = 1
     max_capacity = 1
   }
+  depends_on = [
+    # Attempt to prevent the `ConcurrentUpdateException`
+    aws_appautoscaling_scheduled_action.airflow_scheduler_scheduled_scale_in
+  ]
 }

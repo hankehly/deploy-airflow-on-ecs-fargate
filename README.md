@@ -39,15 +39,14 @@ make tf-apply
 ```
 
 Initialize the database
-```
-# fill in subnets / security-groups first
-aws ecs run-task --cli-input-yaml "$(cat tasks/db-init.yaml)"
+```shell
+python3 scripts/run_task.py --public-subnet-ids subnet-xxx --security-group sg-xxx --command 'db init'
 ```
 
 Add a login user
-```
-# fill in subnets / security-groups first
-aws ecs run-task --cli-input-yaml "$(cat tasks/users-create.yaml)"
+```shell
+python3 scripts/run_task.py --public-subnet-ids subnet-xxx --security-group sg-xxx --command \
+  'users create --username airflow --firstname airflow --lastname airflow --password airflow --email airflow@example.com --role Admin'
 ```
 
 Find your load balancer DNS name and open the console

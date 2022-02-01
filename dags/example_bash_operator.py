@@ -26,7 +26,7 @@ from airflow.operators.dummy import DummyOperator
 
 with DAG(
     dag_id="example_bash_operator",
-    schedule_interval="0 0 * * *",
+    schedule_interval="* * * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     dagrun_timeout=timedelta(minutes=60),
