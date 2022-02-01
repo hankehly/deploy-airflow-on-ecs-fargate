@@ -1,6 +1,46 @@
 # deploy-airflow-on-ecs-fargate
 An example of how to deploy Apache Airflow on Amazon ECS Fargate
 
+### Project structure
+
+```
+├── Makefile
+├── README.md
+├── build .............................. anything related to building container images
+│   ├── dev ............................ development image referenced by docker-compose.yml
+│   │   ├── Containerfile
+│   │   └── airflow.cfg
+│   ├── prod ........................... production image uploaded to ECR
+│   │   ├── Containerfile
+│   │   └── airflow.cfg
+│   └── requirements ................... pypi packages installed container images
+│       ├── requirements.dev.txt
+│       └── requirements.txt
+├── dags
+│   └── example_bash_operator.py ....... mapped to AIRFLOW_HOME/dags
+├── deploy_airflow_on_ecs_fargate ...... import-able python package for configuration files / use in dags (mapped to AIRFLOW_HOME/deploy_airflow_on_ecs_fargate)
+│   ├── __init__.py
+│   ├── celery_config.py ............... custom celery configuration
+│   └── logging_config.py .............. custom logging configuration
+├── docker-compose.yml
+├── infrastructure ..................... ECS terraform configuration
+│   ├── airflow_metadata_db.tf
+│   ├── airflow_scheduler.tf
+│   ├── airflow_standalone_task.tf
+│   ├── airflow_webserver.tf
+│   ├── airflow_worker.tf
+│   ├── celery_broker.tf
+│   ├── ecr.tf
+│   ├── ecs_cluster.tf
+│   ├── main.tf
+│   ├── secrets.tf
+│   ├── terraform.tfvars.template ...... a template for defining sensitive variables required to deploy infrastructure
+│   └── vpc.tf
+├── plugins ............................ mapped to AIRFLOW_HOME/plugins
+└── scripts
+    └── run_task.py .................... an example python script for running standalone tasks on the ECS cluster
+```
+
 ### Setup local
 ```
 docker compose up -d
@@ -82,12 +122,30 @@ $ aws elbv2 describe-load-balancers
 
 <img width="1563" alt="airflow-home" src="https://user-images.githubusercontent.com/11639738/151594663-0895e62e-2fb3-4a6d-8bd5-98e9d8f1af90.png">
 
-Get a shell using [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html). [Install the Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) first.
+Get a shell into the scheduler container using [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html). This step requires your to first install the `awscli` [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
 ```shell
-aws ecs execute-command --cluster airflow --task {task_id} --container webserver --interactive --command "/bin/bash"
+$ aws ecs execute-command --cluster airflow --task 9db18526dd8341169fbbe3e2b74547fb --container scheduler --interactive --command "/bin/bash"
+
+The Session Manager plugin was installed successfully. Use the AWS CLI to start a session.
+
+
+Starting session with SessionId: ecs-execute-command-0d94b5b2472323b7d
+root@9db18526dd8341169fbbe3e2b74547fb-2568554522:/opt/airflow# ls -la
+total 52
+drwxrwxr-x 1 airflow root 4096 Feb  1 22:41 .
+drwxr-xr-x 1 root    root 4096 Jan 17 23:22 ..
+-rw-r--r-- 1 airflow root 1854 Feb  1 22:37 airflow.cfg
+drwxrwxr-x 1 airflow root 4096 Feb  1 21:28 dags
+drwxr-xr-x 1 airflow root 4096 Feb  1 21:28 deploy_airflow_on_ecs_fargate
+drwxrwxr-x 1 airflow root 4096 Feb  1 22:41 logs
+drwxr-xr-x 2 airflow root 4096 Feb  1 21:28 plugins
+-rw-r--r-- 1 airflow root  199 Jan 31 00:45 requirements.txt
+-rw-rw-r-- 1 airflow root 4695 Feb  1 22:41 webserver_config.py
+root@9db18526dd8341169fbbe3e2b74547fb-2568554522:/opt/airflow# whoami
+root
 ```
 
-Manually scale the webserver to zero
+Manually scale the webserver to zero.
 ```shell
 # macos
 export TWO_MINUTES_LATER=$(date -u -v+2M '+%Y-%m-%dT%H:%M:00')
@@ -95,44 +153,42 @@ export TWO_MINUTES_LATER=$(date -u -v+2M '+%Y-%m-%dT%H:%M:00')
 export TWO_MINUTES_LATER=$(date -u --date='2 minutes' '+%Y-%m-%dT%H:%M:00')
 
 docker run --rm -v "${HOME}/.aws:/root/.aws" amazon/aws-cli application-autoscaling put-scheduled-action \
-	  --service-namespace ecs \
-	  --scalable-dimension ecs:service:DesiredCount \
-	  --resource-id service/airflow/airflow-webserver \
-	  --scheduled-action-name scale-webserver-to-zero \
-	  --schedule "at(${TWO_MINUTES_LATER})" \
-	  --scalable-target-action MinCapacity=0,MaxCapacity=0
+  --service-namespace ecs \
+  --scalable-dimension ecs:service:DesiredCount \
+  --resource-id service/airflow/airflow-webserver \
+  --scheduled-action-name scale-webserver-to-zero \
+  --schedule "at(${TWO_MINUTES_LATER})" \
+  --scalable-target-action MinCapacity=0,MaxCapacity=0
 
 # Confirm the scheduled event was created
-docker run --rm -it -v ~/.aws:/root/.aws amazon/aws-cli application-autoscaling describe-scheduled-actions \
-  --service-namespace ecs
-#
-#         {
-#             "ScheduledActionName": "single-scalein-action-test",
-#             "ScheduledActionARN": "arn:aws:autoscaling:us-east-1:***:scheduledAction:***:resource/ecs/service/airflow/airflow-webserver:scheduledActionName/single-scalein-action-test",
-#             "ServiceNamespace": "ecs",
-#             "Schedule": "at(2022-01-28T17:19:00)",
-#             "ResourceId": "service/airflow/airflow-webserver",
-#             "ScalableDimension": "ecs:service:DesiredCount",
-#             "ScalableTargetAction": {
-#                 "MinCapacity": 1,
-#                 "MaxCapacity": 1
-#             },
-#             "CreationTime": "2022-01-28T16:50:07.802000+00:00"
-#         }
-#     ]
-# }
+$ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
+{
+    [
+        (..redacted)
+        {
+            "ScheduledActionName": "single-scalein-action-test",
+            "ScheduledActionARN": "arn:aws:autoscaling:us-east-1:***:scheduledAction:***:resource/ecs/service/airflow/airflow-webserver:scheduledActionName/single-scalein-action-test",
+            "ServiceNamespace": "ecs",
+            "Schedule": "at(2022-01-28T17:19:00)",
+            "ResourceId": "service/airflow/airflow-webserver",
+            "ScalableDimension": "ecs:service:DesiredCount",
+            "ScalableTargetAction": {
+                "MinCapacity": 1,
+                "MaxCapacity": 1
+            },
+            "CreationTime": "2022-01-28T16:50:07.802000+00:00"
+        }
+    ]
+}
 ```
 
 Notes:
 - I use `name_prefix` to avoid name collisions with other AWS resources in global namespaces (like security groups, IAM roles, etc..). This is especially useful for SecretManager, where you must wait at least 7 days before you can fully delete a secret.
 
 ### Todo
-- Create a shell script wrapper around `aws ecs run-task` to run standalone task. Options should be command, cpu, memory, capacityProvider (fargate or fargate spot, etc..)
-- Document directory structure
 - Describe technical decisions / tradeoffs
 - Add infrastructure diagram
 - Add development, deployment tips (eg. how to manage image versions, etc..)
-```
 
 Gotchas
 - If you encounter a `ConcurrentUpdateException` saying you already have a pending update to an Auto Scaling resource, just run the apply command again.
