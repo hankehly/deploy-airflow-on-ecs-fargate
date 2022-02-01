@@ -14,6 +14,7 @@ x-airflow-common:
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@airflow-db/airflow
     AIRFLOW__CELERY__BROKER_URL: sqs://user:pass@celery-broker:9324/
     AIRFLOW__WEBSERVER__INSTANCE_NAME: "${AIRFLOW__WEBSERVER__INSTANCE_NAME:-deploy-airflow-on-ecs-fargate}"
+    AIRFLOW__LOGGING__LOGGING_LEVEL: DEBUG
     PYTHONPATH: "/opt/airflow/deploy_airflow_on_ecs_fargate:$PYTHONPATH"
   volumes:
     - ./dags:/opt/airflow/dags

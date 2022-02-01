@@ -43,6 +43,11 @@ resource "aws_ecs_task_definition" "airflow_worker" {
       memory    = 2048
       essential = true
       command   = ["celery", "worker"]
+      # Start the init process inside the container to remove any zombie SSM agent child processes found
+      # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html#ecs-exec-task-definition
+      linuxParameters = {
+        initProcessEnabled = true
+      }
       environment = [
         {
           name  = "AIRFLOW__WEBSERVER__INSTANCE_NAME"
@@ -60,6 +65,10 @@ resource "aws_ecs_task_definition" "airflow_worker" {
         {
           name  = "AIRFLOW__CELERY__RESULT_BACKEND_SECRET"
           value = substr(aws_secretsmanager_secret.celery_result_backend.name, 45, -1)
+        },
+        {
+          name  = "AIRFLOW__LOGGING__LOGGING_LEVEL"
+          value = "DEBUG"
         },
         {
           name  = "X_AIRFLOW_SQS_CELERY_BROKER_PREDEFINED_QUEUE_URL"
@@ -104,7 +113,7 @@ resource "aws_ecs_service" "airflow_worker" {
   lifecycle {
     ignore_changes = [desired_count]
   }
-
+  enable_execute_command = true
   network_configuration {
     subnets = [aws_subnet.public_a.id, aws_subnet.public_b.id]
     # For tasks on Fargate, in order for the task to pull the container image it must either

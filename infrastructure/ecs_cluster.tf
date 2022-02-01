@@ -89,6 +89,37 @@ resource "aws_iam_policy" "airflow_sqs_read_write" {
   })
 }
 
+# The ECS Exec feature requires a task IAM role to grant containers the permissions
+# needed for communication between the managed SSM agent (execute-command agent) and
+# the SSM service.
+# https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html#ecs-exec-enabling-and-using
+resource "aws_iam_policy" "ecs_task_ecs_exec" {
+  name_prefix = "ecs-task-ecs-exec-"
+  path        = "/"
+  description = "Grant containers the permissions needed for communication between the managed SSM agent (execute-command agent) and the SSM service."
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Enable ECS Exec on our airflow tasks
+resource "aws_iam_role_policy_attachment" "airflow_ecs_exec" {
+  role       = aws_iam_role.airflow_task.name
+  policy_arn = aws_iam_policy.ecs_task_ecs_exec.arn
+}
+
 # Allow airflow tasks to read SecretManager secrets
 resource "aws_iam_role_policy_attachment" "airflow_read_secret" {
   role       = aws_iam_role.airflow_task.name
