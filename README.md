@@ -122,6 +122,18 @@ $ aws elbv2 describe-load-balancers
 
 <img width="1563" alt="airflow-home" src="https://user-images.githubusercontent.com/11639738/151594663-0895e62e-2fb3-4a6d-8bd5-98e9d8f1af90.png">
 
+### Autoscaling
+
+TODO
+
+### Examples
+
+Run an arbitrary command as a standalone task in the ECS cluster.
+```shell
+$ python3 scripts/run_task.py --public-subnet-ids subnet-*** --security-group sg-*** --command \
+  'users create --username airflow --firstname airflow --lastname airflow --password airflow --email airflow@example.com --role Admin'
+```
+
 Get a shell into the scheduler container using [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html). This step requires your to first install the `awscli` [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
 ```shell
 $ aws ecs execute-command --cluster airflow --task 9db18526dd8341169fbbe3e2b74547fb --container scheduler --interactive --command "/bin/bash"
@@ -148,19 +160,16 @@ root
 Manually scale the webserver to zero.
 ```shell
 # macos
-export TWO_MINUTES_LATER=$(date -u -v+2M '+%Y-%m-%dT%H:%M:00')
+$ export TWO_MINUTES_LATER=$(date -u -v+2M '+%Y-%m-%dT%H:%M:00')
 # linux
-export TWO_MINUTES_LATER=$(date -u --date='2 minutes' '+%Y-%m-%dT%H:%M:00')
-
-docker run --rm -v "${HOME}/.aws:/root/.aws" amazon/aws-cli application-autoscaling put-scheduled-action \
+$ export TWO_MINUTES_LATER=$(date -u --date='2 minutes' '+%Y-%m-%dT%H:%M:00')
+$ docker run --rm -v "${HOME}/.aws:/root/.aws" amazon/aws-cli application-autoscaling put-scheduled-action \
   --service-namespace ecs \
   --scalable-dimension ecs:service:DesiredCount \
   --resource-id service/airflow/airflow-webserver \
   --scheduled-action-name scale-webserver-to-zero \
   --schedule "at(${TWO_MINUTES_LATER})" \
   --scalable-target-action MinCapacity=0,MaxCapacity=0
-
-# Confirm the scheduled event was created
 $ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
 {
     [
@@ -182,13 +191,14 @@ $ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
 }
 ```
 
-Notes:
-- I use `name_prefix` to avoid name collisions with other AWS resources in global namespaces (like security groups, IAM roles, etc..). This is especially useful for SecretManager, where you must wait at least 7 days before you can fully delete a secret.
+### Container image management
+
+During development, your team could build adhoc images using the `git` commit hash. For example `deploy-airflow-on-ecs-fargate-2.2.3-python3.9:de4f657`. In production, you could tag images using semantic versioning. For example `deploy-airflow-on-ecs-fargate-2.2.3-python3.9:0.1`.
+
+### Notes
+- To avoid collisions with other AWS resource, I often use `name_prefix` instead of `name` in terraform configuration files. This is especially useful for SecretManager, which requires a 7 day wait period before fully deleting the secret.
+- There are various "gotchas" in the terraform configuration that can be tricky to determine beforehand.
 
 ### Todo
-- Describe technical decisions / tradeoffs
 - Add infrastructure diagram
-- Add development, deployment tips (eg. how to manage image versions, etc..)
-
-Gotchas
-- If you encounter a `ConcurrentUpdateException` saying you already have a pending update to an Auto Scaling resource, just run the apply command again.
+- Describe technical decisions / tradeoffs
