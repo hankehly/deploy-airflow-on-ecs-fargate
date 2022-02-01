@@ -1,55 +1,85 @@
 # deploy-airflow-on-ecs-fargate
 An example of how to deploy Apache Airflow on Amazon ECS Fargate
 
-### Setup local environment
+### Setup local
 ```
 docker compose up -d
 docker compose run --rm airflow-cli db init
 docker compose run --rm airflow-cli users create --email airflow@example.com --firstname airflow --lastname airflow --password airflow --username airflow --role Admin
 ```
 
-### Setup ECS environment
+### Setup ECS
 
-Create the ECR repo first
+Create the ECR repository to store the customized airflow image.
 ```shell
-# alias for `terraform -chdir=infrastructure apply -target=aws_ecr_repository.airflow`
-make tf-apply-ecr
+$ terraform -chdir=infrastructure apply -target=aws_ecr_repository.airflow
 ```
 
-Go to the Elastic Container Registry console at `https://console.aws.amazon.com/ecr/repositories?region={region}` and copy the new repository URI.
-
-Authenticate container build tool with aws
+Obtain the repository URI via `awscli` or the [AWS console](https://console.aws.amazon.com/ecr/repositories).
 ```shell
-aws ecr get-login-password --region {region} | (docker/podman) login --username AWS --password-stdin {account}.dkr.ecr.{region}.amazonaws.com
+$ aws ecr describe-repositories
+{
+    "repositories": [
+        {
+            "repositoryArn": "arn:aws:ecr:us-east-1:***:repository/deploy-airflow-on-ecs-fargate-airflow",
+            "registryId": "***",
+            "repositoryName": "deploy-airflow-on-ecs-fargate-airflow",
+            "repositoryUri": "***.dkr.ecr.us-east-1.amazonaws.com/deploy-airflow-on-ecs-fargate-airflow",
+            "createdAt": "2022-02-02T06:27:15+09:00",
+            "imageTagMutability": "MUTABLE",
+            "imageScanningConfiguration": {
+                "scanOnPush": true
+            },
+            "encryptionConfiguration": {
+                "encryptionType": "AES256"
+            }
+        }
+    ]
+}
 ```
 
-Build and push the image
+Authenticate your preferred container build tool with AWS.
 ```shell
-export REPO_URI="{account}.dkr.ecr.{region}.amazonaws.com/deploy-airflow-on-ecs-fargate-airflow"
-make build-prod
-docker push $REPO_URI
+$ aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ***.dkr.ecr.us-east-1.amazonaws.com
 ```
 
-Run terraform plan/apply. If you encounter a `ConcurrentUpdateException` saying you already have a pending update to an Auto Scaling resource, just run the apply command again.
+Build and push the container image.
 ```shell
-# alias for `terraform -chdir=infrastructure plan`
-make tf-plan
-# alias for `terraform -chdir=infrastructure apply`
-make tf-apply
+$ export REPO_URI="{account}.dkr.ecr.{region}.amazonaws.com/deploy-airflow-on-ecs-fargate-airflow"
+$ docker buildx build -t "${REPO_URI}" -f build/prod/Containerfile --platform linux/amd64 .
+$ docker push "${REPO_URI}"
 ```
 
-Initialize the database
+Deploy the remaining infrastructure.
 ```shell
-python3 scripts/run_task.py --public-subnet-ids subnet-xxx --security-group sg-xxx --command 'db init'
+$ terraform -chdir=infrastructure plan
+$ terraform -chdir=infrastructure apply
 ```
 
-Add a login user
+Initialize the airflow metadata database.
 ```shell
-python3 scripts/run_task.py --public-subnet-ids subnet-xxx --security-group sg-xxx --command \
+$ python3 scripts/run_task.py --public-subnet-ids subnet-*** --security-group sg-*** --command 'db init'
+```
+
+Create an admin user.
+```shell
+$ python3 scripts/run_task.py --public-subnet-ids subnet-*** --security-group sg-*** --command \
   'users create --username airflow --firstname airflow --lastname airflow --password airflow --email airflow@example.com --role Admin'
 ```
 
-Find your load balancer DNS name and open the console
+Find and open the airflow webserver load balancer URI.
+```shell
+$ aws elbv2 describe-load-balancers
+{
+    "LoadBalancers": [
+        {
+            "DNSName": "airweb20220201213050041900000016-231209530.us-east-1.elb.amazonaws.com",
+	    (..redacted)
+        }
+    ]
+}
+```
+
 <img width="1563" alt="airflow-home" src="https://user-images.githubusercontent.com/11639738/151594663-0895e62e-2fb3-4a6d-8bd5-98e9d8f1af90.png">
 
 Get a shell using [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html). [Install the Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) first.
@@ -103,3 +133,6 @@ Notes:
 - Add infrastructure diagram
 - Add development, deployment tips (eg. how to manage image versions, etc..)
 ```
+
+Gotchas
+- If you encounter a `ConcurrentUpdateException` saying you already have a pending update to an Auto Scaling resource, just run the apply command again.
