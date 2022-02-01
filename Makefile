@@ -12,3 +12,7 @@ tf-plan:
 
 tf-apply:
 	@terraform -chdir=infrastructure apply
+
+tf-destroy:
+	@terraform -chdir=infrastructure destroy
+
