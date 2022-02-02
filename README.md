@@ -155,6 +155,12 @@ root@9db18526dd8341169fbbe3e2b74547fb-2568554522:/opt/airflow# whoami
 root
 ```
 
+Sometimes ECS exec will fail with the following message:
+```
+An error occurred (InvalidParameterException) when calling the ExecuteCommand operation: The execute command failed because execute command was not enabled when the task was run or the execute command agent isn’t running. Wait and try again or run a new task with execute command enabled and try again.
+```
+If this happens, you can often mitigate the problem by forcing a new container deployment.
+
 #### Manually scale the webserver to zero
 ```shell
 # macos
