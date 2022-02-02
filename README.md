@@ -42,12 +42,12 @@ docker compose run --rm airflow-cli users create --email airflow@example.com --f
 
 ### Setup an ECS cluster
 
-Create the ECR repository to store the customized airflow image.
+1. Create the ECR repository to store the customized airflow image.
 ```shell
 $ terraform -chdir=infrastructure apply -target=aws_ecr_repository.airflow
 ```
 
-Obtain the repository URI via `awscli` or the [AWS console](https://console.aws.amazon.com/ecr/repositories).
+2. Obtain the repository URI via `awscli` or the [AWS console](https://console.aws.amazon.com/ecr/repositories).
 ```shell
 $ aws ecr describe-repositories
 {
@@ -69,37 +69,31 @@ $ aws ecr describe-repositories
     ]
 }
 ```
-
-Authenticate your preferred container build tool with AWS.
+3. Authenticate your preferred container build tool with AWS.
 ```shell
 $ aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ***.dkr.ecr.us-east-1.amazonaws.com
 ```
-
-Build and push the container image.
+4. Build and push the container image.
 ```shell
-$ export REPO_URI="{account}.dkr.ecr.{region}.amazonaws.com/deploy-airflow-on-ecs-fargate-airflow"
+$ export REPO_URI="***.dkr.ecr.us-east-1.amazonaws.com/deploy-airflow-on-ecs-fargate-airflow"
 $ docker buildx build -t "${REPO_URI}" -f build/prod/Containerfile --platform linux/amd64 .
 $ docker push "${REPO_URI}"
 ```
-
-Deploy the remaining infrastructure.
+5. Deploy the remaining infrastructure.
 ```shell
 $ terraform -chdir=infrastructure plan
 $ terraform -chdir=infrastructure apply
 ```
-
-Initialize the airflow metadata database.
+6. Initialize the airflow metadata database.
 ```shell
 $ python3 scripts/run_task.py --public-subnet-ids subnet-*** --security-group sg-*** --command 'db init'
 ```
-
-Create an admin user.
+7. Create an admin user.
 ```shell
 $ python3 scripts/run_task.py --public-subnet-ids subnet-*** --security-group sg-*** --command \
   'users create --username airflow --firstname airflow --lastname airflow --password airflow --email airflow@example.com --role Admin'
 ```
-
-Find and open the airflow webserver load balancer URI.
+8. Find and open the airflow webserver load balancer URI.
 ```shell
 $ aws elbv2 describe-load-balancers
 {
