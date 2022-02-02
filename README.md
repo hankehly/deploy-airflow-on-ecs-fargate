@@ -1,10 +1,11 @@
 # deploy-airflow-on-ecs-fargate
 An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) on Amazon ECS Fargate
 
-### Table of contents
+#### Table of contents
 - [Project structure](#project-structure)
-- [Setup a local development environment](#setup-a-local-development-environment)
-- [Setup an ECS cluster](#setup-an-ecs-cluster)
+- [Getting started](#getting-started)
+  - [Setup a local development environment](#setup-a-local-development-environment)
+  - [Setup an ECS cluster](#setup-an-ecs-cluster)
 - [Autoscaling](#autoscaling)
 - [Standalone Tasks](#standalone-tasks)
 - [Examples](#examples)
@@ -12,51 +13,35 @@ An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) 
 ### Project structure
 
 ```
-├── Makefile
-├── README.md
 ├── build .............................. anything related to building container images
 │   ├── dev ............................ development image referenced by docker-compose.yml
-│   │   ├── Containerfile
-│   │   └── airflow.cfg
 │   ├── prod ........................... production image uploaded to ECR
-│   │   ├── Containerfile
-│   │   └── airflow.cfg
 │   └── requirements ................... pypi packages installed container images
-│       ├── requirements.dev.txt
-│       └── requirements.txt
 ├── dags
 │   └── example_bash_operator.py ....... mapped to AIRFLOW_HOME/dags
 ├── deploy_airflow_on_ecs_fargate ...... import-able python package for configuration files / use in dags (mapped to AIRFLOW_HOME/deploy_airflow_on_ecs_fargate)
-│   ├── __init__.py
 │   ├── celery_config.py ............... custom celery configuration
 │   └── logging_config.py .............. custom logging configuration
 ├── docker-compose.yml
 ├── infrastructure ..................... ECS terraform configuration
-│   ├── airflow_metadata_db.tf
-│   ├── airflow_scheduler.tf
-│   ├── airflow_standalone_task.tf
-│   ├── airflow_webserver.tf
-│   ├── airflow_worker.tf
-│   ├── celery_broker.tf
-│   ├── ecr.tf
-│   ├── ecs_cluster.tf
-│   ├── main.tf
-│   ├── secrets.tf
 │   ├── terraform.tfvars.template ...... a template for defining sensitive variables required to deploy infrastructure
-│   └── vpc.tf
+│   └── *.tf ........................... example ECS cluster terraform configuration
 ├── plugins ............................ mapped to AIRFLOW_HOME/plugins
 └── scripts
     └── run_task.py .................... an example python script for running standalone tasks on the ECS cluster
 ```
 
-### Setup local
+## Getting started
+
+### Setup a local development environment
+
 ```
 docker compose up -d
 docker compose run --rm airflow-cli db init
 docker compose run --rm airflow-cli users create --email airflow@example.com --firstname airflow --lastname airflow --password airflow --username airflow --role Admin
 ```
 
-### Setup ECS
+### Setup an ECS cluster
 
 Create the ECR repository to store the customized airflow image.
 ```shell
@@ -130,19 +115,31 @@ $ aws elbv2 describe-load-balancers
 
 <img width="1563" alt="airflow-home" src="https://user-images.githubusercontent.com/11639738/151594663-0895e62e-2fb3-4a6d-8bd5-98e9d8f1af90.png">
 
+### Standalone Tasks
+
+A common need is to be able to execute an arbitrary command in the cluster context. For this purpose, AWS has the [run-task](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_run_task.html) API.
+
+This repository contains terraform code to register a template task definition named "airflow-standalone-task" for use with run-task. When we want to submit a standalone workload to the ECS cluster, we can run `aws ecs run-task` and specify the standalone task definition as well as override container definition parameters like cpu, memory and command. This gives us the ability to run arbitrary commands with customized resources.
+
 ### Autoscaling
 
-TODO
+The autoscaling policies documented in this repository are just examples based on personal preference. They may not be exactly what you need, but the do offer a good starting point.
+
+Autoscaling is accomplished in a different way depending on the component type. The webserver and scheduler use [scheduled scaling](https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-scheduled-scaling.html) to scale to zero at night (assuming you have no tasks running overnight) and 1 during the day. The number of celery workers increases and decreases in steps based on 2 Cloud Watch alarms tracking the SQS celery broker.
+1. When `ApproximateNumberOfMessagesVisible` exceeds zero, we increase the number of tasks by 1. We check this condition every 60 seconds.
+2. When `NumberOfEmptyReceives` exceeds zero for 15 consecutive minutes, we decrease the number of tasks by 1.
 
 ### Examples
 
-Run an arbitrary command as a standalone task in the ECS cluster.
+#### Run an arbitrary workload as a standalone task
 ```shell
 $ python3 scripts/run_task.py --public-subnet-ids subnet-*** --security-group sg-*** --command \
   'users create --username airflow --firstname airflow --lastname airflow --password airflow --email airflow@example.com --role Admin'
 ```
 
-Get a shell into the scheduler container using [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html). This step requires your to first install the `awscli` [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
+#### Get a shell into a service container using [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html).
+
+This step requires your to first install the `awscli` [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
 ```shell
 $ aws ecs execute-command --cluster airflow --task 9db18526dd8341169fbbe3e2b74547fb --container scheduler --interactive --command "/bin/bash"
 
@@ -165,7 +162,7 @@ root@9db18526dd8341169fbbe3e2b74547fb-2568554522:/opt/airflow# whoami
 root
 ```
 
-Manually scale the webserver to zero.
+#### Manually scale the webserver to zero
 ```shell
 # macos
 $ export TWO_MINUTES_LATER=$(date -u -v+2M '+%Y-%m-%dT%H:%M:00')
