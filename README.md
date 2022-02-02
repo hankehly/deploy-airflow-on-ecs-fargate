@@ -189,9 +189,5 @@ $ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
 }
 ```
 
-### Container image management
-
-During development, your team could build adhoc images using the `git` commit hash. For example `deploy-airflow-on-ecs-fargate-2.2.3-python3.9:de4f657`. In production, you could tag images using semantic versioning. For example `deploy-airflow-on-ecs-fargate-2.2.3-python3.9:0.1`.
-
 ### Notes
 - To avoid collisions with other AWS resource, I often use `name_prefix` instead of `name` in terraform configuration files. This is also useful for resources like SecretManager secrets, which require a 7 day wait period before full deletion.
