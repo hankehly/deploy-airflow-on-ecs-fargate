@@ -17,8 +17,7 @@ An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) 
 │   ├── dev ............................ development image referenced by docker-compose.yml
 │   ├── prod ........................... production image uploaded to ECR
 │   └── requirements ................... pypi packages installed container images
-├── dags
-│   └── example_bash_operator.py ....... mapped to AIRFLOW_HOME/dags
+├── dags ............................... mapped to AIRFLOW_HOME/dags
 ├── deploy_airflow_on_ecs_fargate ...... import-able python package for configuration files / use in dags (mapped to AIRFLOW_HOME/deploy_airflow_on_ecs_fargate)
 │   ├── celery_config.py ............... custom celery configuration
 │   └── logging_config.py .............. custom logging configuration
