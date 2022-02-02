@@ -116,7 +116,7 @@ This repository contains terraform code to register a template task definition n
 
 ### Autoscaling
 
-The autoscaling policies documented in this repository are just examples based on personal preference. They may not be exactly what you need, but the do offer a good starting point.
+The autoscaling policies documented in this repository are just examples based on personal preference. They may not be exactly what you need, but do offer a good starting point.
 
 Autoscaling is accomplished in a different way depending on the component type. The webserver and scheduler use [scheduled scaling](https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-scheduled-scaling.html) to scale to zero at night (assuming you have no tasks running overnight) and 1 during the day. The number of celery workers increases and decreases in steps based on 2 Cloud Watch alarms tracking the SQS celery broker.
 1. When `ApproximateNumberOfMessagesVisible` exceeds zero, we increase the number of tasks by 1. We check this condition every 60 seconds.
@@ -194,9 +194,4 @@ $ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
 During development, your team could build adhoc images using the `git` commit hash. For example `deploy-airflow-on-ecs-fargate-2.2.3-python3.9:de4f657`. In production, you could tag images using semantic versioning. For example `deploy-airflow-on-ecs-fargate-2.2.3-python3.9:0.1`.
 
 ### Notes
-- To avoid collisions with other AWS resource, I often use `name_prefix` instead of `name` in terraform configuration files. This is especially useful for SecretManager, which requires a 7 day wait period before fully deleting the secret.
-- There are various "gotchas" in the terraform configuration that can be tricky to determine beforehand.
-
-### Todo
-- Add infrastructure diagram
-- Describe technical decisions / tradeoffs
+- To avoid collisions with other AWS resource, I often use `name_prefix` instead of `name` in terraform configuration files. This is also useful for resources like SecretManager secrets, which require a 7 day wait period before full deletion.
