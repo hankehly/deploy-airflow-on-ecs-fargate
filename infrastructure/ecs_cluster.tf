@@ -42,7 +42,7 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy_attach
 # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#task_role_arn
 # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html
 resource "aws_iam_role" "airflow_task" {
-  name_prefix = "airflowTask-"
+  name_prefix = "airflow-task-"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [

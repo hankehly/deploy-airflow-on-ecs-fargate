@@ -1,6 +1,6 @@
 # Scheduler service security group (no incoming connections)
 resource "aws_security_group" "airflow_scheduler_service" {
-  name_prefix = "airflow-scheduler"
+  name_prefix = "airflow-scheduler-"
   description = "Deny all incoming traffic"
   vpc_id      = aws_vpc.main.id
   egress {

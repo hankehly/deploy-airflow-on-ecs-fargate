@@ -1,6 +1,6 @@
 # A security group to attach to our webserver ALB to allow all incoming HTTP requests
 resource "aws_security_group" "airflow_webserver_alb" {
-  name_prefix = "airflow-webserver-alb"
+  name_prefix = "airflow-webserver-alb-"
   description = "Allow TLS inbound traffic"
   vpc_id      = aws_vpc.main.id
   ingress {
@@ -19,8 +19,7 @@ resource "aws_security_group" "airflow_webserver_alb" {
 
 # The ALB for our webserver service
 resource "aws_lb" "airflow_webserver" {
-  # Gotcha: "name_prefix" cannot be longer than 6 characters
-  name_prefix        = "airweb"
+  name               = "airflow-webserver"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.airflow_webserver_alb.id]
@@ -34,8 +33,7 @@ resource "aws_lb" "airflow_webserver" {
 # Flow: Internet -> ALB -> Listener -> Target Group -> ECS Service
 # Note: ECS registers targets automatically, so we do not need to define them.
 resource "aws_lb_target_group" "airflow_webserver" {
-  # Gotcha: "name_prefix" cannot be longer than 6 characters
-  name_prefix = "airweb"
+  name        = "airflow-webserver"
   port        = 8080
   protocol    = "HTTP"
   target_type = "ip"
@@ -154,7 +152,7 @@ resource "aws_ecs_task_definition" "airflow_webserver" {
 
 # Webserver service security group to allow access from load balancer
 resource "aws_security_group" "airflow_webserver_service" {
-  name_prefix = "airflow-webserver-service"
+  name_prefix = "airflow-webserver-service-"
   description = "Allow HTTP inbound traffic from load balancer"
   vpc_id      = aws_vpc.main.id
   ingress {

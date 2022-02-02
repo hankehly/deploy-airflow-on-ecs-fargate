@@ -1,6 +1,6 @@
 # Worker service security group (no incoming connections)
 resource "aws_security_group" "airflow_worker_service" {
-  name_prefix = "airflow-worker"
+  name_prefix = "airflow-worker-"
   description = "Deny all incoming traffic"
   vpc_id      = aws_vpc.main.id
   egress {
@@ -109,7 +109,7 @@ resource "aws_ecs_service" "airflow_worker" {
 
   # Workers are autoscaled depending on the state of the broker queue, so there is no
   # need to specify a desired_count here (the default is 0)
-  desired_count = 0
+  desired_count = 1
   lifecycle {
     ignore_changes = [desired_count]
   }
@@ -128,12 +128,12 @@ resource "aws_ecs_service" "airflow_worker" {
   # image/tag combination (e.g., myimage:latest)
   force_new_deployment = true
   # If a capacityProviderStrategy is specified, the launchType parameter must be omitted.
-  # launch_type = "FARGATE"
-  capacity_provider_strategy {
-    capacity_provider = "FARGATE_SPOT"
-    # 100% of tasks should use fargate spot
-    weight = 1
-  }
+  launch_type = "FARGATE"
+  # capacity_provider_strategy {
+  #   capacity_provider = "FARGATE_SPOT"
+  #   # 100% of tasks should use fargate spot
+  #   weight = 1
+  # }
 }
 
 # For this example, we want to save money by scaling to zero at night when we don't need to access the service.
@@ -151,67 +151,67 @@ resource "aws_appautoscaling_target" "airflow_worker" {
 
 # Scale in the workers
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/appautoscaling_policy
-resource "aws_appautoscaling_policy" "airflow_worker_scale_in" {
-  name               = "airflow-worker-scale-in"
-  policy_type        = "StepScaling"
-  resource_id        = aws_appautoscaling_target.airflow_worker.resource_id
-  scalable_dimension = aws_appautoscaling_target.airflow_worker.scalable_dimension
-  service_namespace  = aws_appautoscaling_target.airflow_worker.service_namespace
-  # More information on policy configuration can be found here:
-  # # https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-simple-step.html#as-scaling-steps
-  step_scaling_policy_configuration {
-    adjustment_type = "ChangeInCapacity"
-    # Scale in as most once every 5 minutes
-    cooldown = 300
-    # When looking at the cloud watch alarm metric points that triggered the scaling,
-    # what do we want to base the step adjustment on? The minimum, maximum or average
-    # value? Because we only have 1 step, the value of this parameter does not really matter
-    metric_aggregation_type = "Maximum"
-    # Property descriptions can be found here:
-    # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-autoscaling-scalingpolicy-stepadjustments.html
-    # Here is a nice video describing step adjustments:
-    # https://www.youtube.com/watch?v=Arv6NGQJJJQ
-    step_adjustment {
-      scaling_adjustment = -1
-      # Setting the lower bound to zero indicates we want to act immediately on alarm threshold breach
-      metric_interval_lower_bound = 0
-      # Setting the upper bound to null(=inf) indicates that we do want our scaling
-      # behavior to stop at a certain "cap"; rather we want it to continue as long as we
-      # are in alarm state. If we wanted to scale-in in bigger adjustments, we could set
-      # the upper bound to a number, then add another step adjustment with the lower bound
-      # set to the other step adjustment's upper bound. This demo just shows a simple
-      # configuration.
-      metric_interval_upper_bound = null
-    }
-  }
-}
+# resource "aws_appautoscaling_policy" "airflow_worker_scale_in" {
+#   name               = "airflow-worker-scale-in"
+#   policy_type        = "StepScaling"
+#   resource_id        = aws_appautoscaling_target.airflow_worker.resource_id
+#   scalable_dimension = aws_appautoscaling_target.airflow_worker.scalable_dimension
+#   service_namespace  = aws_appautoscaling_target.airflow_worker.service_namespace
+#   # More information on policy configuration can be found here:
+#   # # https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-simple-step.html#as-scaling-steps
+#   step_scaling_policy_configuration {
+#     adjustment_type = "ChangeInCapacity"
+#     # Scale in as most once every 5 minutes
+#     cooldown = 300
+#     # When looking at the cloud watch alarm metric points that triggered the scaling,
+#     # what do we want to base the step adjustment on? The minimum, maximum or average
+#     # value? Because we only have 1 step, the value of this parameter does not really matter
+#     metric_aggregation_type = "Maximum"
+#     # Property descriptions can be found here:
+#     # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-autoscaling-scalingpolicy-stepadjustments.html
+#     # Here is a nice video describing step adjustments:
+#     # https://www.youtube.com/watch?v=Arv6NGQJJJQ
+#     step_adjustment {
+#       scaling_adjustment = -1
+#       # Setting the lower bound to zero indicates we want to act immediately on alarm threshold breach
+#       metric_interval_lower_bound = 0
+#       # Setting the upper bound to null(=inf) indicates that we do want our scaling
+#       # behavior to stop at a certain "cap"; rather we want it to continue as long as we
+#       # are in alarm state. If we wanted to scale-in in bigger adjustments, we could set
+#       # the upper bound to a number, then add another step adjustment with the lower bound
+#       # set to the other step adjustment's upper bound. This demo just shows a simple
+#       # configuration.
+#       metric_interval_upper_bound = null
+#     }
+#   }
+# }
 
-# Scale out workers
-resource "aws_appautoscaling_policy" "airflow_worker_scale_out" {
-  name               = "airflow-worker-scale-out"
-  policy_type        = "StepScaling"
-  resource_id        = aws_appautoscaling_target.airflow_worker.resource_id
-  scalable_dimension = aws_appautoscaling_target.airflow_worker.scalable_dimension
-  service_namespace  = aws_appautoscaling_target.airflow_worker.service_namespace
-  step_scaling_policy_configuration {
-    adjustment_type = "ChangeInCapacity"
-    # Scale out at most once every 60 seconds
-    cooldown = 60
-    # When looking at the cloud watch alarm metric points that triggered the scaling,
-    # what do we want to base the step adjustment on? The minimum, maximum or average
-    # value? Because we only have 1 step, the value of this parameter does not really matter
-    metric_aggregation_type = "Maximum"
-    step_adjustment {
-      scaling_adjustment = 1
-      # Start scaling immediately on alarm threshold breach
-      metric_interval_lower_bound = 0
-      # Never stop or change scaling behavior, no matter how high the threshold breach goes
-      metric_interval_upper_bound = null
-    }
-  }
-  depends_on = [
-    # Attempt to prevent the `ConcurrentUpdateException` by specifying dependency on the
-    # other scaling policy
-    aws_appautoscaling_policy.airflow_worker_scale_in
-  ]
-}
+# # Scale out workers
+# resource "aws_appautoscaling_policy" "airflow_worker_scale_out" {
+#   name               = "airflow-worker-scale-out"
+#   policy_type        = "StepScaling"
+#   resource_id        = aws_appautoscaling_target.airflow_worker.resource_id
+#   scalable_dimension = aws_appautoscaling_target.airflow_worker.scalable_dimension
+#   service_namespace  = aws_appautoscaling_target.airflow_worker.service_namespace
+#   step_scaling_policy_configuration {
+#     adjustment_type = "ChangeInCapacity"
+#     # Scale out at most once every 60 seconds
+#     cooldown = 60
+#     # When looking at the cloud watch alarm metric points that triggered the scaling,
+#     # what do we want to base the step adjustment on? The minimum, maximum or average
+#     # value? Because we only have 1 step, the value of this parameter does not really matter
+#     metric_aggregation_type = "Maximum"
+#     step_adjustment {
+#       scaling_adjustment = 1
+#       # Start scaling immediately on alarm threshold breach
+#       metric_interval_lower_bound = 0
+#       # Never stop or change scaling behavior, no matter how high the threshold breach goes
+#       metric_interval_upper_bound = null
+#     }
+#   }
+#   depends_on = [
+#     # Attempt to prevent the `ConcurrentUpdateException` by specifying dependency on the
+#     # other scaling policy
+#     aws_appautoscaling_policy.airflow_worker_scale_in
+#   ]
+# }

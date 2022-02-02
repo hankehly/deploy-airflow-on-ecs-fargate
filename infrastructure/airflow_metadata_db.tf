@@ -1,7 +1,7 @@
 # A subnet group for our RDS instance
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_subnet_group
 resource "aws_db_subnet_group" "airflow_metadata_db" {
-  name_prefix = "airflow-metadata-db"
+  name_prefix = "airflow-metadata-db-"
   subnet_ids  = [aws_subnet.private_a.id, aws_subnet.private_b.id]
 }
 
@@ -9,7 +9,7 @@ resource "aws_db_subnet_group" "airflow_metadata_db" {
 # Should allow incoming access on var.metadata_db.port from our airflow services.
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group
 resource "aws_security_group" "airflow_metadata_db" {
-  name_prefix = "airflow-metadata-db"
+  name_prefix = "airflow-metadata-db-"
   description = "Allow inbound traffic to RDS from ECS"
   vpc_id      = aws_vpc.main.id
   ingress {
@@ -34,7 +34,7 @@ resource "aws_security_group" "airflow_metadata_db" {
 # A tiny postgres RDS instance for airflow metadata
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_instance
 resource "aws_db_instance" "airflow_metadata_db" {
-  identifier_prefix      = "airflow-metadata-db"
+  identifier_prefix      = "airflow-metadata-db-"
   allocated_storage      = 20
   max_allocated_storage  = 100
   db_subnet_group_name   = aws_db_subnet_group.airflow_metadata_db.name
