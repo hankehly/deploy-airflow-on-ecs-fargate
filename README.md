@@ -197,3 +197,6 @@ $ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
 
 ### Notes
 - To avoid collisions with other AWS resource, I often use `name_prefix` instead of `name` in terraform configuration files. This is also useful for resources like SecretManager secrets, which require a 7 day wait period before full deletion.
+
+### Todo
+- How many times does the airflow worker poll in 300 seconds? That should be the `NumberOfEmptyReceives` threshold, not zero.
