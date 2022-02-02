@@ -197,3 +197,6 @@ $ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
 
 ### Notes
 - To avoid collisions with other AWS resource, I often use `name_prefix` instead of `name` in terraform configuration files. This is also useful for resources like SecretManager secrets, which require a 7 day wait period before full deletion.
+
+### Todo
+- Rethink the scale-in behavior. If the celery polling interval is 1 second, there may by many "empty receives" even though the scheduler is delivering messages. What we probably want is the average number of empty recieves. If it's 100% for the past 15 minutes, then we can scale in.
