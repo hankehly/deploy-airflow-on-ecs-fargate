@@ -1,7 +1,7 @@
 # A security group for our standalone tasks
 # We specify this not in our task definition, but when making calls to the "run-task" API
 resource "aws_security_group" "airflow_standalone_task" {
-  name_prefix = "airflow-standalone-task-"
+  name        = "airflow-standalone-task"
   description = "Deny all incoming traffic"
   vpc_id      = aws_vpc.main.id
   egress {
