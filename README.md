@@ -86,11 +86,11 @@ $ terraform -chdir=infrastructure apply
 ```
 6. Initialize the airflow metadata database.
 ```shell
-$ python3 scripts/run_task.py --public-subnet-ids subnet-*** --security-group sg-*** --command 'db init'
+$ python3 scripts/run_task.py --command 'db init'
 ```
 7. Create an admin user.
 ```shell
-$ python3 scripts/run_task.py --public-subnet-ids subnet-*** --security-group sg-*** --command \
+$ python3 scripts/run_task.py --command \
   'users create --username airflow --firstname airflow --lastname airflow --password airflow --email airflow@example.com --role Admin'
 ```
 8. Find and open the airflow webserver load balancer URI.
