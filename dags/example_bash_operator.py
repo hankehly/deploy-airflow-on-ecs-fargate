@@ -37,12 +37,10 @@ with DAG(
         task_id="run_this_last",
     )
 
-    # [START howto_operator_bash]
     run_this = BashOperator(
         task_id="run_after_loop",
         bash_command="echo 1",
     )
-    # [END howto_operator_bash]
 
     run_this >> run_this_last
 
@@ -53,22 +51,15 @@ with DAG(
         )
         task >> run_this
 
-    # [START howto_operator_bash_template]
     also_run_this = BashOperator(
         task_id="also_run_this",
         bash_command='echo "run_id={{ run_id }} | dag_run={{ dag_run }}"',
     )
-    # [END howto_operator_bash_template]
     also_run_this >> run_this_last
 
-# [START howto_operator_bash_skip]
 this_will_skip = BashOperator(
     task_id="this_will_skip",
     bash_command='echo "hello world"; exit 99;',
     dag=dag,
 )
-# [END howto_operator_bash_skip]
 this_will_skip >> run_this_last
-
-if __name__ == "__main__":
-    dag.cli()
