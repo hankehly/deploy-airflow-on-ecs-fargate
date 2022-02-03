@@ -10,7 +10,7 @@ RUN apt-get update \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-COPY --chown=airflow:airflow build/requirements/requirements.txt "${AIRFLOW_HOME}/requirements.txt"
+COPY --chown=airflow:airflow build/dev/requirements.txt "${AIRFLOW_HOME}/requirements.txt"
 
 USER airflow
 RUN pip install --upgrade pip \
