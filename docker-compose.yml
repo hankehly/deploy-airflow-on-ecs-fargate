@@ -141,5 +141,25 @@ services:
       - -c
       - airflow
 
+  # A service to translate statsd input into prometheus compatible metrics
+  # https://hub.docker.com/r/prom/statsd-exporter
+  statsd-exporter:
+    image: prom/statsd-exporter
+    command: "--statsd.listen-udp=:8125 --web.listen-address=:9102"
+    ports:
+      # You can open localhost:9102/metrics to see what is being exported
+      - 9102:9102
+    restart: always
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - 9090:9090
+    volumes:
+      - ./build/dev/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-volume:/prometheus
+    restart: always
+
 volumes:
   airflow-db-volume:
+  prometheus-volume:
