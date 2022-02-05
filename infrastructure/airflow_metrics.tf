@@ -74,8 +74,11 @@ resource "aws_ecs_task_definition" "airflow_metrics" {
       logConfiguration = {
         logDriver = "awsfirelens"
         options = {
+          Name            = "kinesis_firehose"
           region          = var.aws_region
           delivery_stream = aws_kinesis_firehose_delivery_stream.airflow_metrics_stream.name
+          time_key        = "timestamp"
+          time_key_format = "%Y-%m-%dT%H:%M:%S.%L"
         }
       }
     },
@@ -130,33 +133,33 @@ resource "aws_ecs_service" "airflow_metrics" {
   force_new_deployment = true
 }
 
-# resource "aws_cloudwatch_metric_alarm" "airflow_zero_active_running_dags" {
-#   alarm_name        = "AirflowZeroActiveRunningDags"
-#   alarm_description = "Alarm raised when the number of active running dags is zero for 15 consecutive minutes"
-#   namespace         = local.number_of_active_running_dags_metric.namespace
-#   metric_name       = local.number_of_active_running_dags_metric.metric_name
-#   dimensions = {
-#     ClusterName = aws_ecs_cluster.airflow.name
-#   }
-#   # Evaluate the alarm every 300 seconds
-#   period = 300
-#   # Every {period} seconds, we want to compute the sum of the data points within the
-#   # past {period} seconds.
-#   statistic = "Sum"
-#   # When deciding whether or not to enter alarm state, consider this many periods in the past.
-#   evaluation_periods = 3
-#   # If this many points out of the past {evaluation_periods} points meet the alarm state
-#   # condition, enter alarm state. Otherwise, enter OK state.
-#   # In this demonstration, I want to check for 15 consecutive minutes of inactivity, so
-#   # only enter alarm state if 3 out of the past 3 periods (each 5 minutes in length)
-#   # reached the alarm state condition.
-#   datapoints_to_alarm = 3
-#   # Every {period} seconds, we ask the following:
-#   #  "Is the metric value for the past {period} seconds less than {threshold}?"
-#   comparison_operator = "LessThanThreshold"
-#   threshold           = 1
-#   alarm_actions = [
-#     # Trigger airflow workers to "scale in"
-#     aws_appautoscaling_policy.airflow_worker_scale_in.arn
-#   ]
-# }
+resource "aws_cloudwatch_metric_alarm" "airflow_zero_active_running_dags" {
+  alarm_name        = "AirflowZeroActiveRunningDags"
+  alarm_description = "Alarm raised when the number of active running dags is zero for 15 consecutive minutes"
+  namespace         = local.number_of_active_running_dags_metric.namespace
+  metric_name       = local.number_of_active_running_dags_metric.metric_name
+  dimensions = {
+    ClusterName = aws_ecs_cluster.airflow.name
+  }
+  # Evaluate the alarm every 300 seconds
+  period = 300
+  # Every {period} seconds, we want to compute the sum of the data points within the
+  # past {period} seconds.
+  statistic = "Sum"
+  # When deciding whether or not to enter alarm state, consider this many periods in the past.
+  evaluation_periods = 3
+  # If this many points out of the past {evaluation_periods} points meet the alarm state
+  # condition, enter alarm state. Otherwise, enter OK state.
+  # In this demonstration, I want to check for 15 consecutive minutes of inactivity, so
+  # only enter alarm state if 3 out of the past 3 periods (each 5 minutes in length)
+  # reached the alarm state condition.
+  datapoints_to_alarm = 3
+  # Every {period} seconds, we ask the following:
+  #  "Is the metric value for the past {period} seconds less than {threshold}?"
+  comparison_operator = "LessThanThreshold"
+  threshold           = 1
+  alarm_actions = [
+    # Trigger airflow workers to "scale in"
+    aws_appautoscaling_policy.airflow_worker_scale_in.arn
+  ]
+}

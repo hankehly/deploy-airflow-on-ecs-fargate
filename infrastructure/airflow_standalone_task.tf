@@ -57,8 +57,11 @@ resource "aws_ecs_task_definition" "airflow_standalone_task" {
       logConfiguration = {
         logDriver = "awsfirelens"
         options = {
+          Name            = "kinesis_firehose"
           region          = var.aws_region
           delivery_stream = aws_kinesis_firehose_delivery_stream.airflow_standalone_task_stream.name
+          time_key        = "timestamp"
+          time_key_format = "%Y-%m-%dT%H:%M:%S.%L"
         }
       }
     },

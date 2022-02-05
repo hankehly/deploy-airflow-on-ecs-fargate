@@ -132,10 +132,17 @@ resource "aws_ecs_task_definition" "airflow_webserver" {
         # https://aws.amazon.com/blogs/containers/under-the-hood-firelens-for-amazon-ecs-tasks/
         logDriver = "awsfirelens"
         options = {
+          # Error: unable to apply log options of container metrics to fireLens config: missing output key Name which is r
           # Amazon Kinesis Data Firehose output plugin configuration parameters
           # https://docs.fluentbit.io/manual/pipeline/outputs/firehose#configuration-parameters
+          Name            = "kinesis_firehose"
           region          = var.aws_region
           delivery_stream = aws_kinesis_firehose_delivery_stream.airflow_webserver_stream.name
+          # Gotcha: You need to set the time_key property to add the timestamp to the log record.
+          # By default the timestamp from Fluent Bit will not be added to records sent to Kinesis.
+          time_key = "timestamp"
+          # Add millisecond precision to timestamp
+          time_key_format = "%Y-%m-%dT%H:%M:%S.%L"
         }
       }
     },
@@ -263,7 +270,7 @@ resource "aws_appautoscaling_scheduled_action" "airflow_webserver_scheduled_scal
     max_capacity = 1
   }
   depends_on = [
-    # Attempt to prevent the `ConcurrentUpdateException`
+    # Prevent a `ConcurrentUpdateException` by forcing sequential changes to autoscaling policies
     aws_appautoscaling_scheduled_action.airflow_webserver_scheduled_scale_in
   ]
 }

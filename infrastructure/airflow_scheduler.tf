@@ -57,8 +57,11 @@ resource "aws_ecs_task_definition" "airflow_scheduler" {
       logConfiguration = {
         logDriver = "awsfirelens"
         options = {
+          Name            = "kinesis_firehose"
           region          = var.aws_region
           delivery_stream = aws_kinesis_firehose_delivery_stream.airflow_scheduler_stream.name
+          time_key        = "timestamp"
+          time_key_format = "%Y-%m-%dT%H:%M:%S.%L"
         }
       }
     },
@@ -174,7 +177,7 @@ resource "aws_appautoscaling_scheduled_action" "airflow_scheduler_scheduled_scal
     max_capacity = 1
   }
   depends_on = [
-    # Attempt to prevent the `ConcurrentUpdateException`
+    # Prevent a `ConcurrentUpdateException` by forcing sequential changes to autoscaling policies
     aws_appautoscaling_scheduled_action.airflow_scheduler_scheduled_scale_in
   ]
 }
