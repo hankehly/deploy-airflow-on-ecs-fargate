@@ -57,6 +57,30 @@ resource "aws_iam_role" "airflow_task" {
   })
 }
 
+# A policy to allow the metrics service to send metrics to CloudWatch.
+# These permissions only required by the metrics service; but for demonstration purposes,
+# we grant airflow services the same permissions.
+resource "aws_iam_policy" "airflow_cloudwatch_put_metric_data" {
+  name_prefix = "airflow-cloudwatch-put-metric-data-"
+  path        = "/"
+  description = "Grant permissions needed to send metric data to cloudwatch."
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "cloudwatch:PutMetricData"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "airflow_cloudwatch_put_metric_data" {
+  role       = aws_iam_role.airflow_task.name
+  policy_arn = aws_iam_policy.airflow_cloudwatch_put_metric_data.arn
+}
+
 # Allow airflow tasks to perform operations on SQS queues.
 # The permissions granted here may be more than necessary.
 resource "aws_iam_policy" "airflow_sqs_read_write" {
@@ -87,6 +111,11 @@ resource "aws_iam_policy" "airflow_sqs_read_write" {
       }
     ]
   })
+}
+
+resource "aws_iam_role_policy_attachment" "airflow_sqs_read_write" {
+  role       = aws_iam_role.airflow_task.name
+  policy_arn = aws_iam_policy.airflow_sqs_read_write.arn
 }
 
 # The ECS Exec feature requires a task IAM role to grant containers the permissions
@@ -120,13 +149,79 @@ resource "aws_iam_role_policy_attachment" "airflow_ecs_exec" {
   policy_arn = aws_iam_policy.ecs_task_ecs_exec.arn
 }
 
+resource "aws_iam_policy" "airflow_firehose_put_record_batch" {
+  name_prefix = "airflow-firehose-put-record-batch-"
+  path        = "/"
+  description = "Grant containers the permissions required for routing logs to Kinesis Data Firehose."
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "firehose:PutRecordBatch"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "airflow_firehose_put_record_batch" {
+  role       = aws_iam_role.airflow_task.name
+  policy_arn = aws_iam_policy.airflow_firehose_put_record_batch.arn
+}
+
+# A policy to allow ECS services to read secrets from AWS Secret Manager
+resource "aws_iam_policy" "secret_manager_read_secret" {
+  name        = "secretManagerReadSecret"
+  description = "Grants read, list and describe permissions on SecretManager secrets"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret",
+          "secretsmanager:ListSecretVersionIds"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+    ]
+  })
+}
+
 # Allow airflow tasks to read SecretManager secrets
 resource "aws_iam_role_policy_attachment" "airflow_read_secret" {
   role       = aws_iam_role.airflow_task.name
   policy_arn = aws_iam_policy.secret_manager_read_secret.arn
 }
 
-resource "aws_iam_role_policy_attachment" "airflow_sqs_read_write" {
-  role       = aws_iam_role.airflow_task.name
-  policy_arn = aws_iam_policy.airflow_sqs_read_write.arn
+locals {
+  airflow_task_common_env = [
+    {
+      name  = "AIRFLOW__WEBSERVER__INSTANCE_NAME"
+      value = "deploy-airflow-on-ecs-fargate"
+    },
+    # Use substr to remove the "config_prefix" string from the secret names
+    {
+      name  = "AIRFLOW__CORE__SQL_ALCHEMY_CONN_SECRET"
+      value = substr(aws_secretsmanager_secret.sql_alchemy_conn.name, 45, -1)
+    },
+    {
+      name  = "AIRFLOW__CORE__FERNET_KEY_SECRET"
+      value = substr(aws_secretsmanager_secret.fernet_key.name, 45, -1)
+    },
+    {
+      name  = "AIRFLOW__CELERY__RESULT_BACKEND_SECRET"
+      value = substr(aws_secretsmanager_secret.celery_result_backend.name, 45, -1)
+    },
+    {
+      name  = "AIRFLOW__LOGGING__LOGGING_LEVEL"
+      value = "DEBUG"
+    },
+    {
+      name  = "X_AIRFLOW_SQS_CELERY_BROKER_PREDEFINED_QUEUE_URL"
+      value = aws_sqs_queue.airflow_worker_broker.url
+    }
+  ]
 }

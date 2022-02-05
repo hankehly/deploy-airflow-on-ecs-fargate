@@ -32,23 +32,3 @@ resource "aws_secretsmanager_secret_version" "celery_result_backend" {
   secret_id     = aws_secretsmanager_secret.celery_result_backend.id
   secret_string = "db+postgresql://${aws_db_instance.airflow_metadata_db.username}:${aws_db_instance.airflow_metadata_db.password}@${aws_db_instance.airflow_metadata_db.address}:${aws_db_instance.airflow_metadata_db.port}/${aws_db_instance.airflow_metadata_db.name}"
 }
-
-# A policy to allow ECS services to read secrets from AWS Secret Manager
-resource "aws_iam_policy" "secret_manager_read_secret" {
-  name        = "secretManagerReadSecret"
-  description = "Grants read, list and describe permissions on SecretManager secrets"
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = [
-          "secretsmanager:GetSecretValue",
-          "secretsmanager:DescribeSecret",
-          "secretsmanager:ListSecretVersionIds"
-        ]
-        Effect   = "Allow"
-        Resource = "*"
-      },
-    ]
-  })
-}

@@ -60,9 +60,21 @@ resource "aws_lb_listener" "airflow_webserver" {
   }
 }
 
-# Direct webserver logs to this Cloud Watch log group
-resource "aws_cloudwatch_log_group" "airflow_webserver" {
-  name_prefix       = "deploy-airflow-on-ecs-fargate/airflow-webserver/"
+# Firehose delivery stream for webserver logs
+resource "aws_kinesis_firehose_delivery_stream" "airflow_webserver_stream" {
+  name        = "deploy-airflow-on-ecs-fargate-airflow-webserver-stream"
+  destination = "extended_s3"
+  extended_s3_configuration {
+    role_arn            = aws_iam_role.airflow_firehose.arn
+    bucket_arn          = aws_s3_bucket.airflow.arn
+    prefix              = "kinesis-firehose/airflow-webserver/"
+    error_output_prefix = "kinesis-firehose/airflow-webserver-error-output/"
+  }
+}
+
+# Send fluentbit logs to Cloud Watch
+resource "aws_cloudwatch_log_group" "airflow_webserver_fluentbit" {
+  name_prefix       = "deploy-airflow-on-ecs-fargate/airflow-webserver-fluentbit/"
   retention_in_days = 3
 }
 
@@ -108,44 +120,41 @@ resource "aws_ecs_task_definition" "airflow_webserver" {
       linuxParameters = {
         initProcessEnabled = true
       }
-      essential = true
-      command   = ["webserver"]
-      environment = [
-        {
-          name  = "AIRFLOW__WEBSERVER__INSTANCE_NAME"
-          value = "deploy-airflow-on-ecs-fargate"
-        },
-        # Use substr to remove the "config_prefix" string from the secret names
-        {
-          name  = "AIRFLOW__CORE__SQL_ALCHEMY_CONN_SECRET"
-          value = substr(aws_secretsmanager_secret.sql_alchemy_conn.name, 45, -1)
-        },
-        {
-          name  = "AIRFLOW__CORE__FERNET_KEY_SECRET"
-          value = substr(aws_secretsmanager_secret.fernet_key.name, 45, -1)
-        },
-        {
-          name  = "AIRFLOW__CELERY__RESULT_BACKEND_SECRET"
-          value = substr(aws_secretsmanager_secret.celery_result_backend.name, 45, -1)
-        },
-        {
-          name  = "AIRFLOW__LOGGING__LOGGING_LEVEL"
-          value = "DEBUG"
-        },
-        {
-          name  = "X_AIRFLOW_SQS_CELERY_BROKER_PREDEFINED_QUEUE_URL"
-          value = aws_sqs_queue.airflow_worker_broker.url
+      essential   = true
+      command     = ["webserver"]
+      environment = local.airflow_task_common_env
+      user        = "50000:0"
+      # Example forwarding logs to an Kinesis Data Firehose delivery stream
+      # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/firelens-example-taskdefs.html#firelens-example-firehose
+      logConfiguration = {
+        # The awsfirelens log driver is syntactic sugar for the Task Definition.
+        # It allows you to specify Fluentd or Fluent Bit output plugin configuration.
+        # https://aws.amazon.com/blogs/containers/under-the-hood-firelens-for-amazon-ecs-tasks/
+        logDriver = "awsfirelens"
+        options = {
+          # Amazon Kinesis Data Firehose output plugin configuration parameters
+          # https://docs.fluentbit.io/manual/pipeline/outputs/firehose#configuration-parameters
+          region          = var.aws_region
+          delivery_stream = aws_kinesis_firehose_delivery_stream.airflow_webserver_stream.name
         }
-      ]
-      user = "50000:0"
+      }
+    },
+    {
+      name      = "fluentbit"
+      essential = true
+      image     = local.fluentbit_image,
+      firelensConfiguration = {
+        type = "fluentbit"
+      }
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.airflow_webserver.name
+          awslogs-group         = aws_cloudwatch_log_group.airflow_webserver_fluentbit.name
           awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "airflow-webserver"
+          awslogs-stream-prefix = "airflow-webserver-fluentbit"
         }
-      }
+      },
+      memoryReservation = 50
     }
   ])
 }

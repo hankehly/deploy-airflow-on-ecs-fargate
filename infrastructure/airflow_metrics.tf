@@ -1,3 +1,21 @@
+# Firehose delivery stream for metrics logs
+resource "aws_kinesis_firehose_delivery_stream" "airflow_metrics_stream" {
+  name        = "deploy-airflow-on-ecs-fargate-airflow-metrics-stream"
+  destination = "extended_s3"
+  extended_s3_configuration {
+    role_arn            = aws_iam_role.airflow_firehose.arn
+    bucket_arn          = aws_s3_bucket.airflow.arn
+    prefix              = "kinesis-firehose/airflow-metrics/"
+    error_output_prefix = "kinesis-firehose/airflow-metrics-error-output/"
+  }
+}
+
+# Send fluentbit logs to Cloud Watch
+resource "aws_cloudwatch_log_group" "airflow_metrics_fluentbit" {
+  name_prefix       = "deploy-airflow-on-ecs-fargate/airflow-metrics-fluentbit/"
+  retention_in_days = 3
+}
+
 # Metrics service security group (no incoming connections)
 resource "aws_security_group" "airflow_metrics_service" {
   name_prefix = "airflow-metrics-"
@@ -9,12 +27,6 @@ resource "aws_security_group" "airflow_metrics_service" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-}
-
-# Direct metrics service logs to this Cloud Watch log group
-resource "aws_cloudwatch_log_group" "airflow_metrics" {
-  name_prefix       = "deploy-airflow-on-ecs-fargate/airflow-metrics/"
-  retention_in_days = 3
 }
 
 locals {
@@ -60,13 +72,29 @@ resource "aws_ecs_task_definition" "airflow_metrics" {
       environment = local.airflow_task_common_env
       user        = "50000:0"
       logConfiguration = {
-        logDriver = "awslogs"
+        logDriver = "awsfirelens"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.airflow_metrics.name
-          awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "airflow-metrics"
+          region          = var.aws_region
+          delivery_stream = aws_kinesis_firehose_delivery_stream.airflow_metrics_stream.name
         }
       }
+    },
+    {
+      name      = "fluentbit"
+      essential = true
+      image     = local.fluentbit_image,
+      firelensConfiguration = {
+        type = "fluentbit"
+      }
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.airflow_metrics_fluentbit.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "airflow-metrics-fluentbit"
+        }
+      },
+      memoryReservation = 50
     }
   ])
 }

@@ -1,19 +1,18 @@
-# Scheduler service security group (no incoming connections)
-resource "aws_security_group" "airflow_scheduler_service" {
-  name_prefix = "airflow-scheduler-"
-  description = "Deny all incoming traffic"
-  vpc_id      = aws_vpc.main.id
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+# Firehose delivery stream for scheduler logs
+resource "aws_kinesis_firehose_delivery_stream" "airflow_scheduler_stream" {
+  name        = "deploy-airflow-on-ecs-fargate-airflow-scheduler-stream"
+  destination = "extended_s3"
+  extended_s3_configuration {
+    role_arn            = aws_iam_role.airflow_firehose.arn
+    bucket_arn          = aws_s3_bucket.airflow.arn
+    prefix              = "kinesis-firehose/airflow-scheduler/"
+    error_output_prefix = "kinesis-firehose/airflow-scheduler-error-output/"
   }
 }
 
-# Direct scheduler logs to this Cloud Watch log group
-resource "aws_cloudwatch_log_group" "airflow_scheduler" {
-  name_prefix       = "deploy-airflow-on-ecs-fargate/airflow-scheduler/"
+# Send fluentbit logs to Cloud Watch
+resource "aws_cloudwatch_log_group" "airflow_scheduler_fluentbit" {
+  name_prefix       = "deploy-airflow-on-ecs-fargate/airflow-scheduler-fluentbit/"
   retention_in_days = 3
 }
 
@@ -53,44 +52,47 @@ resource "aws_ecs_task_definition" "airflow_scheduler" {
       linuxParameters = {
         initProcessEnabled = true
       }
-      environment = [
-        {
-          name  = "AIRFLOW__WEBSERVER__INSTANCE_NAME"
-          value = "deploy-airflow-on-ecs-fargate"
-        },
-        # Use substr to remove the "config_prefix" string from the secret names
-        {
-          name  = "AIRFLOW__CORE__SQL_ALCHEMY_CONN_SECRET"
-          value = substr(aws_secretsmanager_secret.sql_alchemy_conn.name, 45, -1)
-        },
-        {
-          name  = "AIRFLOW__CORE__FERNET_KEY_SECRET"
-          value = substr(aws_secretsmanager_secret.fernet_key.name, 45, -1)
-        },
-        {
-          name  = "AIRFLOW__CELERY__RESULT_BACKEND_SECRET"
-          value = substr(aws_secretsmanager_secret.celery_result_backend.name, 45, -1)
-        },
-        {
-          name  = "AIRFLOW__LOGGING__LOGGING_LEVEL"
-          value = "DEBUG"
-        },
-        {
-          name  = "X_AIRFLOW_SQS_CELERY_BROKER_PREDEFINED_QUEUE_URL"
-          value = aws_sqs_queue.airflow_worker_broker.url
+      environment = local.airflow_task_common_env
+      user        = "50000:0"
+      logConfiguration = {
+        logDriver = "awsfirelens"
+        options = {
+          region          = var.aws_region
+          delivery_stream = aws_kinesis_firehose_delivery_stream.airflow_scheduler_stream.name
         }
-      ]
-      user = "50000:0"
+      }
+    },
+    {
+      name      = "fluentbit"
+      essential = true
+      image     = local.fluentbit_image,
+      firelensConfiguration = {
+        type = "fluentbit"
+      }
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.airflow_scheduler.name
+          awslogs-group         = aws_cloudwatch_log_group.airflow_scheduler_fluentbit.name
           awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "airflow-scheduler"
+          awslogs-stream-prefix = "airflow-scheduler-fluentbit"
         }
-      }
+      },
+      memoryReservation = 50
     }
   ])
+}
+
+# Scheduler service security group (no incoming connections)
+resource "aws_security_group" "airflow_scheduler_service" {
+  name_prefix = "airflow-scheduler-"
+  description = "Deny all incoming traffic"
+  vpc_id      = aws_vpc.main.id
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 # Airflow ECS scheduler service

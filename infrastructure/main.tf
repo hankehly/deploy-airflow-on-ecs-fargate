@@ -36,3 +36,7 @@ variable "aws_region" {
   type    = string
   default = "us-east-1"
 }
+
+locals {
+  fluentbit_image = "public.ecr.aws/aws-observability/aws-for-fluent-bit:stable"
+}

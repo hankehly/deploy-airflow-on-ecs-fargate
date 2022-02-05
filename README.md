@@ -2,13 +2,21 @@
 An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) on Amazon ECS Fargate
 
 #### Table of contents
-- [Project structure](#project-structure)
-- [Getting started](#getting-started)
-  - [Setup a local development environment](#setup-a-local-development-environment)
-  - [Setup an ECS cluster](#setup-an-ecs-cluster)
-- [Autoscaling](#autoscaling)
-- [Standalone Tasks](#standalone-tasks)
-- [Examples](#examples)
+- [deploy-airflow-on-ecs-fargate](#deploy-airflow-on-ecs-fargate)
+      - [Table of contents](#table-of-contents)
+    - [Project structure](#project-structure)
+  - [Getting started](#getting-started)
+    - [Setup a local development environment](#setup-a-local-development-environment)
+    - [Setup an ECS cluster](#setup-an-ecs-cluster)
+    - [Standalone Tasks](#standalone-tasks)
+    - [Logging](#logging)
+    - [Autoscaling](#autoscaling)
+    - [Examples](#examples)
+      - [Run an arbitrary workload as a standalone task](#run-an-arbitrary-workload-as-a-standalone-task)
+      - [Get a shell into a service container using ECS exec.](#get-a-shell-into-a-service-container-using-ecs-exec)
+      - [Manually scale the webserver to zero](#manually-scale-the-webserver-to-zero)
+    - [Notes](#notes)
+    - [Todo](#todo)
 
 ### Project structure
 
@@ -42,12 +50,15 @@ docker compose run --rm airflow-cli users create --email airflow@example.com --f
 
 ### Setup an ECS cluster
 
-1. Create the ECR repository to store the customized airflow image.
+1. Initialize the terraform directory
+```shell
+$ terraform -chdir=infrastructure init
+```
+2. Create the ECR repository to store the customized airflow image.
 ```shell
 $ terraform -chdir=infrastructure apply -target=aws_ecr_repository.airflow
 ```
-
-2. Obtain the repository URI via `awscli` or the [AWS console](https://console.aws.amazon.com/ecr/repositories).
+3. Obtain the repository URI via `awscli` or the [AWS console](https://console.aws.amazon.com/ecr/repositories).
 ```shell
 $ aws ecr describe-repositories
 {
@@ -69,31 +80,31 @@ $ aws ecr describe-repositories
     ]
 }
 ```
-3. Authenticate your preferred container image build tool with AWS.
+4. Authenticate your preferred container image build tool with AWS.
 ```shell
 $ aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ***.dkr.ecr.us-east-1.amazonaws.com
 ```
-4. Build and push the container image.
+5. Build and push the container image.
 ```shell
 $ export REPO_URI="***.dkr.ecr.us-east-1.amazonaws.com/deploy-airflow-on-ecs-fargate-airflow"
 $ docker buildx build -t "${REPO_URI}" -f build/prod/Containerfile --platform linux/amd64 .
 $ docker push "${REPO_URI}"
 ```
-5. Deploy the remaining infrastructure.
+6. Deploy the remaining infrastructure.
 ```shell
 $ terraform -chdir=infrastructure plan
 $ terraform -chdir=infrastructure apply
 ```
-6. Initialize the airflow metadata database.
+7. Initialize the airflow metadata database.
 ```shell
 $ python3 scripts/run_task.py --command 'db init'
 ```
-7. Create an admin user.
+8. Create an admin user.
 ```shell
 $ python3 scripts/run_task.py --command \
   'users create --username airflow --firstname airflow --lastname airflow --password airflow --email airflow@example.com --role Admin'
 ```
-8. Find and open the airflow webserver load balancer URI.
+9. Find and open the airflow webserver load balancer URI.
 ```shell
 $ aws elbv2 describe-load-balancers
 {
@@ -113,6 +124,10 @@ $ aws elbv2 describe-load-balancers
 A common need is to be able to execute an arbitrary command in the cluster context. For this purpose, AWS has the [run-task](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_run_task.html) API.
 
 This repository contains terraform code to register a template task definition named "airflow-standalone-task" for use with run-task. When we want to submit a standalone workload to the ECS cluster, we can run `aws ecs run-task` and specify the standalone task definition as well as override container definition parameters like cpu, memory and command. This gives us the ability to run arbitrary commands with customized resources.
+
+### Logging
+
+Airflow service logs (webserver, scheduler, etc..) are sent to S3 via Kinesis Firehose. Other auxillary container logs (eg. fluentbit) are sent to Cloud Watch.
 
 ### Autoscaling
 
@@ -199,4 +214,6 @@ $ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
 - To avoid collisions with other AWS resource, I often use `name_prefix` instead of `name` in terraform configuration files. This is also useful for resources like SecretManager secrets, which require a 7 day wait period before full deletion.
 
 ### Todo
-- Rethink the scale-in behavior. If the celery polling interval is 1 second, there may by many "empty receives" even though the scheduler is delivering messages. What we probably want is the average number of empty recieves. If it's 100% for the past 15 minutes, then we can scale in.
+- [ ] For autoscaling, describe what metrics you have access to, how you can access them and how they can be used for scaling.
+- [ ] View logs in airflow UI
+- [ ] Re-enable worker scaling
