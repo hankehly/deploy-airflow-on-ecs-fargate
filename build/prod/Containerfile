@@ -20,5 +20,6 @@ COPY --chown=airflow:airflow dags "${AIRFLOW_HOME}/dags"
 COPY --chown=airflow:airflow plugins "${AIRFLOW_HOME}/plugins"
 COPY --chown=airflow:airflow deploy_airflow_on_ecs_fargate "${AIRFLOW_HOME}/deploy_airflow_on_ecs_fargate"
 COPY --chown=airflow:airflow build/prod/airflow.cfg "${AIRFLOW_HOME}/airflow.cfg"
+COPY --chown=airflow:airflow scripts "${AIRFLOW_HOME}/scripts"
 
 ENV PYTHONPATH="${AIRFLOW_HOME}/deploy_airflow_on_ecs_fargate:${PYTHONPATH}"

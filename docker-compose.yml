@@ -21,6 +21,7 @@ x-airflow-common:
     - ./plugins:/opt/airflow/plugins
     - ./build/dev/airflow.cfg:/opt/airflow/airflow.cfg
     - ./deploy_airflow_on_ecs_fargate:/opt/airflow/deploy_airflow_on_ecs_fargate
+    - ./scripts:/opt/airflow/scripts
   user: "50000:0"
   depends_on:
     &airflow-common-depends-on
