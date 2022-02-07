@@ -5,7 +5,7 @@ from airflow.config_templates.airflow_local_settings import DEFAULT_LOGGING_CONF
 
 STDOUT_LOGGING_CONFIG = deepcopy(DEFAULT_LOGGING_CONFIG)
 
-# 1. Create a new handler that streams to stdout
+# Create a new handler that streams to stdout
 STDOUT_LOGGING_CONFIG["handlers"]["stdout"] = {
     "class": "logging.StreamHandler",
     "formatter": "airflow",
@@ -13,7 +13,9 @@ STDOUT_LOGGING_CONFIG["handlers"]["stdout"] = {
     "filters": ["mask_secrets"],
 }
 
-# 2. Emit all logs to stdout
+# Set each logger handler to stdout. For the task logger, keep the original "task"
+# handler in place. This will allow us to reuse existing airflow functionality to
+# view logs from the UI.
 STDOUT_LOGGING_CONFIG["loggers"]["airflow.processor"]["handlers"] = ["stdout"]
-STDOUT_LOGGING_CONFIG["loggers"]["airflow.task"]["handlers"] = ["stdout"]
+STDOUT_LOGGING_CONFIG["loggers"]["airflow.task"]["handlers"] = ["stdout", "task"]
 STDOUT_LOGGING_CONFIG["loggers"]["flask_appbuilder"]["handlers"] = ["stdout"]

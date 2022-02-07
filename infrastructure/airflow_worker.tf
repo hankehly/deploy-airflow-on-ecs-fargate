@@ -10,11 +10,56 @@ resource "aws_kinesis_firehose_delivery_stream" "airflow_worker_stream" {
   }
 }
 
-# Send fluentbit logs to Cloud Watch
-resource "aws_cloudwatch_log_group" "airflow_worker_fluentbit" {
-  name_prefix       = "deploy-airflow-on-ecs-fargate/airflow-worker-fluentbit/"
-  retention_in_days = 3
+# Send worker logs to this Cloud Watch log group
+resource "aws_cloudwatch_log_group" "airflow_worker" {
+  name_prefix       = "/deploy-airflow-on-ecs-fargate/airflow-worker/"
+  retention_in_days = 1
 }
+
+# An example of how to send logs to multiple destinations
+# resource "aws_s3_bucket_object" "airflow_worker_fluentbit_config" {
+#   bucket  = aws_s3_bucket.airflow.bucket
+#   key     = "fluentbit_config/airflow_worker.conf"
+#   acl     = "private"
+#   content = <<-EOT
+#   [OUTPUT]
+#       Name   cloudwatch_logs
+#       Match  *
+#       region ${var.aws_region}
+#       log_key log
+#       log_group_name /deploy-airflow-on-ecs-fargate/airflow-worker-fluentbit
+#       log_stream_prefix airflow-worker-fluentbit-
+#   [OUTPUT]
+#       Name   firehose
+#       Match  *
+#       region ${var.aws_region}
+#       delivery_stream ${aws_kinesis_firehose_delivery_stream.airflow_worker_stream.name}
+#   EOT
+# }
+
+# {
+#   name      = "fluentbit"
+#   essential = true
+#   image     = local.fluentbit_image,
+#   firelensConfiguration = {
+#     type = "fluentbit"
+#     # Gotcha: Tasks hosted on AWS Fargate only support the file configuration file type.
+#     # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/firelens-taskdef.html
+#     options = {
+#       config-file-type  = "file"
+#       config-file-value = ""
+#     }
+#   }
+#   logConfiguration = {
+#     logDriver = "awslogs"
+#     options = {
+#       awslogs-group         = aws_cloudwatch_log_group.airflow_worker_fluentbit.name
+#       awslogs-region        = var.aws_region
+#       awslogs-stream-prefix = "airflow-worker-fluentbit"
+#     }
+#   },
+#   memoryReservation = 50
+# }
 
 # Worker service task definition
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_task_definition
@@ -60,32 +105,13 @@ resource "aws_ecs_task_definition" "airflow_worker" {
       )
       user = "50000:0"
       logConfiguration = {
-        logDriver = "awsfirelens"
-        options = {
-          Name            = "kinesis_firehose"
-          region          = var.aws_region
-          delivery_stream = aws_kinesis_firehose_delivery_stream.airflow_worker_stream.name
-          time_key        = "timestamp"
-          time_key_format = "%Y-%m-%dT%H:%M:%S.%L"
-        }
-      }
-    },
-    {
-      name      = "fluentbit"
-      essential = true
-      image     = local.fluentbit_image,
-      firelensConfiguration = {
-        type = "fluentbit"
-      }
-      logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = aws_cloudwatch_log_group.airflow_worker_fluentbit.name
+          awslogs-group         = aws_cloudwatch_log_group.airflow_worker.name
           awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "airflow-worker-fluentbit"
+          awslogs-stream-prefix = "airflow-worker"
         }
-      },
-      memoryReservation = 50
+      }
     }
   ])
 }

@@ -127,7 +127,15 @@ This repository contains terraform code to register a template task definition n
 
 ### Logging
 
-Airflow service logs (webserver, scheduler, etc..) are sent to S3 via Kinesis Firehose. Other auxillary container logs (eg. fluentbit) are sent to Cloud Watch.
+This repository demonstrates various logging setups.
+
+webserver | cloudwatch
+scheduler | cloudwatch
+standalone_task | s3 (via kinesis firehose)
+metrics | cloudwatch
+worker | cloudwatch and s3 (via Airflow s3 task log exporter)
+
+Gotcha: If you don't add permissions to access S3 on the worker task, tasks fail but leave no helpful message about why.
 
 ### Autoscaling
 
@@ -215,5 +223,4 @@ $ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
 
 ### Todo
 - [ ] For autoscaling, describe what metrics you have access to, how you can access them and how they can be used for scaling.
-- [ ] View logs in airflow UI
-- [ ] Re-enable worker scaling
+- [ ] Scale-in workers on low resource usage, but keep instance count above 0 until the number of active running dags has been zero for 15 minutes

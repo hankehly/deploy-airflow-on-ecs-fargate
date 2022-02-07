@@ -196,6 +196,38 @@ resource "aws_iam_role_policy_attachment" "airflow_read_secret" {
   policy_arn = aws_iam_policy.secret_manager_read_secret.arn
 }
 
+# Permissions for airflow services to access S3
+resource "aws_iam_policy" "airflow_task_storage" {
+  name_prefix = "airflow-task-storage-"
+  path        = "/"
+  description = ""
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:AbortMultipartUpload",
+          "s3:GetBucketLocation",
+          "s3:GetObject",
+          "s3:ListBucket",
+          "s3:ListBucketMultipartUploads",
+          "s3:PutObject"
+        ],
+        Resource = [
+          aws_s3_bucket.airflow.arn,
+          "${aws_s3_bucket.airflow.arn}/*",
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "airflow_task_storage" {
+  role       = aws_iam_role.airflow_task.name
+  policy_arn = aws_iam_policy.airflow_task_storage.arn
+}
+
 locals {
   airflow_task_common_env = [
     {
@@ -220,8 +252,12 @@ locals {
       value = "DEBUG"
     },
     {
+      name  = "AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER"
+      value = "s3://${aws_s3_bucket.airflow.bucket}/remote_base_log_folder/"
+    },
+    {
       name  = "X_AIRFLOW_SQS_CELERY_BROKER_PREDEFINED_QUEUE_URL"
       value = aws_sqs_queue.airflow_worker_broker.url
-    }
+    },
   ]
 }
