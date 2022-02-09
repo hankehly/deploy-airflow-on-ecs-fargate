@@ -97,11 +97,11 @@ $ terraform -chdir=infrastructure apply
 ```
 7. Initialize the airflow metadata database.
 ```shell
-$ python3 scripts/run_task.py --command 'db init'
+$ python3 scripts/run_task.py --wait-tasks-stopped --command 'db init'
 ```
 8. Create an admin user.
 ```shell
-$ python3 scripts/run_task.py --command \
+$ python3 scripts/run_task.py --wait-tasks-stopped --command \
   'users create --username airflow --firstname airflow --lastname airflow --password airflow --email airflow@example.com --role Admin'
 ```
 9. Find and open the airflow webserver load balancer URI.
@@ -138,6 +138,8 @@ worker | cloudwatch and s3 (via Airflow s3 task log exporter)
 Gotcha: If you don't add permissions to access S3 on the worker task, tasks fail but leave no helpful message about why.
 
 ### Autoscaling
+
+https://docs.aws.amazon.com/mwaa/latest/userguide/mwaa-autoscaling.html
 
 The autoscaling policies documented in this repository are just examples based on personal preference. They may not be exactly what you need, but do offer a good starting point.
 

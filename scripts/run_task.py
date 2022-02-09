@@ -113,6 +113,12 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
+        "--wait-tasks-stopped",
+        action="store_true",
+        default=False,
+        help="After calling run-task, wait  until the task status returns STOPPED",
+    )
+    parser.add_argument(
         "--cpu",
         type=int,
         default=1024,
@@ -146,7 +152,7 @@ if __name__ == "__main__":
 
     print("Submitting task to cluster")
     ecs_client = session.create_client("ecs")
-    ecs_client.run_task(
+    response = ecs_client.run_task(
         capacityProviderStrategy=[{"capacityProvider": args.capacity_provider}],
         cluster=args.cluster,
         count=1,
@@ -172,4 +178,10 @@ if __name__ == "__main__":
         platformVersion="1.4.0",
         taskDefinition=args.task_definition,
     )
-    print("Task submitted")
+    task_arn = response["tasks"][0]["taskArn"]
+    print(f"Task arn: {task_arn}")
+    if args.wait_tasks_stopped:
+        print("Waiting until task stops")
+        waiter = ecs_client.get_waiter("tasks_stopped")
+        waiter.wait(cluster=args.cluster, tasks=[task_arn])
+    print("Done")
