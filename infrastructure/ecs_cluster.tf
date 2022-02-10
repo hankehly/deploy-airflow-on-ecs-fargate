@@ -38,6 +38,18 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy_attach
   policy_arn = data.aws_iam_policy.amazon_ecs_task_execution_role_policy.arn
 }
 
+# The task execution role also requires read access to SSM to fetch the Cloud Watch
+# agent configuration
+# https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/deploy_servicelens_CloudWatch_agent_deploy_ECS.html
+data "aws_iam_policy" "amazon_ssm_read_only_access" {
+  name = "AmazonSSMReadOnlyAccess"
+}
+resource "aws_iam_role_policy_attachment" "amazon_ssm_read_only_access_policy_attachment" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = data.aws_iam_policy.amazon_ssm_read_only_access.arn
+}
+
+
 # A role to control API permissions on our airflow service tasks
 # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#task_role_arn
 # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html
@@ -57,28 +69,14 @@ resource "aws_iam_role" "airflow_task" {
   })
 }
 
-# A policy to allow the metrics service to send metrics to CloudWatch.
-# These permissions only required by the metrics service; but for demonstration purposes,
-# we grant airflow services the same permissions.
-resource "aws_iam_policy" "airflow_cloudwatch_put_metric_data" {
-  name_prefix = "airflow-cloudwatch-put-metric-data-"
-  path        = "/"
-  description = "Grant permissions needed to send metric data to cloudwatch."
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = "cloudwatch:PutMetricData"
-        Resource = "*"
-      }
-    ]
-  })
+# Containers need this policy for usage with Cloud Watch agent
+# https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/deploy_servicelens_CloudWatch_agent_deploy_ECS.html
+data "aws_iam_policy" "cloud_watch_agent_server_policy" {
+  name = "CloudWatchAgentServerPolicy"
 }
-
-resource "aws_iam_role_policy_attachment" "airflow_cloudwatch_put_metric_data" {
+resource "aws_iam_role_policy_attachment" "cloud_watch_agent_server_policy" {
   role       = aws_iam_role.airflow_task.name
-  policy_arn = aws_iam_policy.airflow_cloudwatch_put_metric_data.arn
+  policy_arn = data.aws_iam_policy.cloud_watch_agent_server_policy.arn
 }
 
 # Allow airflow tasks to perform operations on SQS queues.
@@ -190,7 +188,7 @@ resource "aws_iam_policy" "secret_manager_read_secret" {
   })
 }
 
-# Allow airflow tasks to read SecretManager secrets
+# Allow airflow task containers to read SecretManager secrets
 resource "aws_iam_role_policy_attachment" "airflow_read_secret" {
   role       = aws_iam_role.airflow_task.name
   policy_arn = aws_iam_policy.secret_manager_read_secret.arn
@@ -229,23 +227,10 @@ resource "aws_iam_role_policy_attachment" "airflow_task_storage" {
 }
 
 locals {
-  airflow_task_common_env = [
+  airflow_task_common_environment = [
     {
       name  = "AIRFLOW__WEBSERVER__INSTANCE_NAME"
       value = "deploy-airflow-on-ecs-fargate"
-    },
-    # Use substr to remove the "config_prefix" string from the secret names
-    {
-      name  = "AIRFLOW__CORE__SQL_ALCHEMY_CONN_SECRET"
-      value = substr(aws_secretsmanager_secret.sql_alchemy_conn.name, 45, -1)
-    },
-    {
-      name  = "AIRFLOW__CORE__FERNET_KEY_SECRET"
-      value = substr(aws_secretsmanager_secret.fernet_key.name, 45, -1)
-    },
-    {
-      name  = "AIRFLOW__CELERY__RESULT_BACKEND_SECRET"
-      value = substr(aws_secretsmanager_secret.celery_result_backend.name, 45, -1)
     },
     {
       name  = "AIRFLOW__LOGGING__LOGGING_LEVEL"
@@ -259,5 +244,28 @@ locals {
       name  = "X_AIRFLOW_SQS_CELERY_BROKER_PREDEFINED_QUEUE_URL"
       value = aws_sqs_queue.airflow_worker_broker.url
     },
+    # Here we take advantage of Amazon's SecretsManagerBackend to retrieve secret values
+    # at runtime from Secret Manager. We only need to store the *name* of the secret,
+    # so an environment variable is acceptable.
+    # Another option would be to specify the secret values directly as environment
+    # variables using the Task Definition "secrets" attribute.
+    # In that case, you would switch "value" to "valueFrom" and set the value to the
+    # secret ARN: eg. aws_secretsmanager_secret.sql_alchemy_conn.arn
+    {
+      name = "AIRFLOW__CORE__SQL_ALCHEMY_CONN_SECRET"
+
+      # Use substr to remove the "config_prefix" string from the secret names
+      value = substr(aws_secretsmanager_secret.sql_alchemy_conn.name, 45, -1)
+    },
+    {
+      name  = "AIRFLOW__CORE__FERNET_KEY_SECRET"
+      value = substr(aws_secretsmanager_secret.fernet_key.name, 45, -1)
+    },
+    {
+      name  = "AIRFLOW__CELERY__RESULT_BACKEND_SECRET"
+      value = substr(aws_secretsmanager_secret.celery_result_backend.name, 45, -1)
+    },
   ]
+
+  airflow_cloud_watch_metrics_namespace = "DeployAirflowOnECSFargate"
 }

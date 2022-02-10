@@ -22,7 +22,6 @@ resource "aws_secretsmanager_secret_version" "sql_alchemy_conn" {
   secret_string = "postgresql+psycopg2://${aws_db_instance.airflow_metadata_db.username}:${aws_db_instance.airflow_metadata_db.password}@${aws_db_instance.airflow_metadata_db.address}:${aws_db_instance.airflow_metadata_db.port}/${aws_db_instance.airflow_metadata_db.name}"
 }
 
-
 # A secret to hold our celery.result_backend setting for consumption by airflow SecretsManagerBackend
 # eg. db+postgresql://airflow:airflow@airflow-db/airflow
 resource "aws_secretsmanager_secret" "celery_result_backend" {

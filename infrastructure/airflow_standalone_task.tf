@@ -52,7 +52,7 @@ resource "aws_ecs_task_definition" "airflow_standalone_task" {
       memory      = 512
       essential   = true
       command     = ["version"]
-      environment = local.airflow_task_common_env
+      environment = local.airflow_task_common_environment
       user        = "50000:0"
       # Example forwarding logs to a sidecar fluent-bit log router
       # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/firelens-example-taskdefs.html#firelens-example-firehose

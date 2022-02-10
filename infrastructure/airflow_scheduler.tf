@@ -4,6 +4,38 @@ resource "aws_cloudwatch_log_group" "airflow_scheduler" {
   retention_in_days = 1
 }
 
+# Send scheduler logs to this Cloud Watch log group
+resource "aws_cloudwatch_log_group" "airflow_scheduler_cloudwatch_agent" {
+  name_prefix       = "/deploy-airflow-on-ecs-fargate/airflow-scheduler-cloudwatch-agent/"
+  retention_in_days = 1
+}
+
+# https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Agent-Configuration-File-Details.html
+resource "aws_ssm_parameter" "airflow_ecs_cloudwatch_agent_config" {
+  name        = "airflow-ecs-cloudwatch-agent-config"
+  type        = "String"
+  description = "CloudWatch agent configuration file for airflow ECS cluster"
+  value = jsonencode(
+    {
+      agent = {
+        region = var.aws_region,
+        debug  = false
+      }
+      metrics = {
+        namespace = local.airflow_cloud_watch_metrics_namespace
+        metrics_collected = {
+          # These are the default values
+          statsd = {
+            service_address              = ":8125"
+            metrics_collection_interval  = 10
+            metrics_aggregation_interval = 60
+          }
+        }
+      }
+    }
+  )
+}
+
 # Scheduler service task definition
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_task_definition
 resource "aws_ecs_task_definition" "airflow_scheduler" {
@@ -40,7 +72,7 @@ resource "aws_ecs_task_definition" "airflow_scheduler" {
       linuxParameters = {
         initProcessEnabled = true
       }
-      environment = local.airflow_task_common_env
+      environment = local.airflow_task_common_environment
       user        = "50000:0"
       logConfiguration = {
         logDriver = "awslogs"
@@ -50,8 +82,26 @@ resource "aws_ecs_task_definition" "airflow_scheduler" {
           awslogs-stream-prefix = "airflow-scheduler"
         }
       }
-    }
-  ])
+    },
+    {
+      name      = "cloudwatch-agent"
+      essential = true
+      image     = "public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest"
+      secrets = [
+        {
+          name      = "CW_CONFIG_CONTENT",
+          valueFrom = aws_ssm_parameter.airflow_ecs_cloudwatch_agent_config.name
+        }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.airflow_scheduler_cloudwatch_agent.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "airflow-scheduler-cloudwatch-agent"
+        }
+      }
+  }])
 }
 
 # Scheduler service security group (no incoming connections)

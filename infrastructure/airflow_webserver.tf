@@ -110,7 +110,7 @@ resource "aws_ecs_task_definition" "airflow_webserver" {
       }
       essential   = true
       command     = ["webserver"]
-      environment = local.airflow_task_common_env
+      environment = local.airflow_task_common_environment
       user        = "50000:0"
       logConfiguration = {
         logDriver = "awslogs"

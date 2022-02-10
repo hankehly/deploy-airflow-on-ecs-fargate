@@ -11,6 +11,7 @@ An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) 
     - [Standalone Tasks](#standalone-tasks)
     - [Logging](#logging)
     - [Autoscaling](#autoscaling)
+      - [Scale down](#scale-down)
     - [Examples](#examples)
       - [Run an arbitrary workload as a standalone task](#run-an-arbitrary-workload-as-a-standalone-task)
       - [Get a shell into a service container using ECS exec.](#get-a-shell-into-a-service-container-using-ecs-exec)
@@ -141,6 +142,10 @@ Gotcha: If you don't add permissions to access S3 on the worker task, tasks fail
 
 https://docs.aws.amazon.com/mwaa/latest/userguide/mwaa-autoscaling.html
 
+#### Scale down
+When the RunningTasks and QueuedTasks metrics sum to zero for a period of two minutes, Amazon MWAA requests Fargate to set the number of workers to the environment's min-workers value.
+stopTimeout value of 120 second.
+
 The autoscaling policies documented in this repository are just examples based on personal preference. They may not be exactly what you need, but do offer a good starting point.
 
 Autoscaling is accomplished in a different way depending on the component type. The webserver and scheduler use [scheduled scaling](https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-scheduled-scaling.html) to scale to zero at night (assuming you have no tasks running overnight) and 1 during the day. The number of celery workers increases and decreases in steps based on 2 Cloud Watch alarms tracking the SQS celery broker.
@@ -224,5 +229,6 @@ $ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
 - To avoid collisions with other AWS resource, I often use `name_prefix` instead of `name` in terraform configuration files. This is also useful for resources like SecretManager secrets, which require a 7 day wait period before full deletion.
 
 ### Todo
-- [ ] For autoscaling, describe what metrics you have access to, how you can access them and how they can be used for scaling.
-- [ ] Scale-in workers on low resource usage, but keep instance count above 0 until the number of active running dags has been zero for 15 minutes
+- [ ] Use [Amazon MWAA's pattern](https://docs.aws.amazon.com/mwaa/latest/userguide/mwaa-autoscaling.html#mwaa-autoscaling-how) for autoscaling
+- [ ] Try slimming down the image size
+- [ ] Add cost comparison to MWAA
