@@ -130,7 +130,10 @@ if __name__ == "__main__":
             EndTime=now,
         )
         tasks_per_worker = next(
-            filter(lambda v: v["Id"] == "tasks_per_worker", metric_data)
+            filter(
+                lambda v: v["Id"] == "tasks_per_worker",
+                metric_data["MetricDataResults"],
+            )
         )
         value_latest = tasks_per_worker["Values"][0]
         logging.info(f"Put metric data: {value_latest}")

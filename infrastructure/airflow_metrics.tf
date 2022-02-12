@@ -41,8 +41,10 @@ resource "aws_ecs_task_definition" "airflow_metrics" {
       cpu       = 256
       memory    = 512
       essential = true
+      entryPoint = [
+        "python"
+      ]
       command = [
-        "python",
         "scripts/put_tasks_per_worker_metric.py",
         "--namespace",
         local.tasks_per_worker_metric.namespace,
