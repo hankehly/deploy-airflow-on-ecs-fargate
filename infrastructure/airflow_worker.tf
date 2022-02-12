@@ -189,27 +189,29 @@ resource "aws_appautoscaling_target" "airflow_worker" {
 
 # Scale in the workers
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/appautoscaling_policy
-# AWS documentation on step scaling policies
-# https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-step-scaling-policies.html
+# Target tracking scaling policies for Application Auto Scaling
+# https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-target-tracking.html
 # With target tracking scaling policies, you select a scaling metric and set a target value. Amazon Auto Scaling
 # creates and manages the CloudWatch alarms that trigger the scaling policy and calculates the scaling adjustment
 # based on the metric and the target value. We create the metric, and AWS handles the alarms and scaling actions.
-# resource "aws_appautoscaling_policy" "airflow_worker" {
-#   name               = "airflow-worker"
-#   policy_type        = "TargetTrackingScaling"
-#   resource_id        = aws_appautoscaling_target.airflow_worker.resource_id
-#   scalable_dimension = aws_appautoscaling_target.airflow_worker.scalable_dimension
-#   service_namespace  = aws_appautoscaling_target.airflow_worker.service_namespace
-#   target_tracking_scaling_policy_configuration {
-#     target_value      = 5
-#     scale_in_cooldown = 120
-#     customized_metric_specification {
-#       namespace   = local.airflow_cloud_watch_metrics_namespace
-#       metric_name = "MyCustomMetric" # (Queued tasks + Running tasks) / (Number of workers)
-#       statistic   = "?"
-#       dimensions {
-#         # ??
-#       }
-#     }
-#   }
-# }
+resource "aws_appautoscaling_policy" "airflow_worker" {
+  name               = "airflow-worker"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.airflow_worker.resource_id
+  scalable_dimension = aws_appautoscaling_target.airflow_worker.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.airflow_worker.service_namespace
+  target_tracking_scaling_policy_configuration {
+    target_value       = 5
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 300
+    customized_metric_specification {
+      namespace   = local.tasks_per_worker_metric.namespace
+      metric_name = local.tasks_per_worker_metric.metric_name
+      statistic   = "Maximum"
+      dimensions {
+        name  = "ClusterName"
+        value = aws_ecs_cluster.airflow.name
+      }
+    }
+  }
+}
