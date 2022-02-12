@@ -16,6 +16,8 @@ x-airflow-common:
     AIRFLOW__WEBSERVER__INSTANCE_NAME: "${AIRFLOW__WEBSERVER__INSTANCE_NAME:-deploy-airflow-on-ecs-fargate}"
     AIRFLOW__LOGGING__LOGGING_LEVEL: DEBUG
     PYTHONPATH: "/opt/airflow/deploy_airflow_on_ecs_fargate:$PYTHONPATH"
+    # Gotcha: Even though we set this to "True" in airflow.cfg, an environment variable overrides it
+    AIRFLOW__CORE__LOAD_EXAMPLES: True
   volumes:
     - ./dags:/opt/airflow/dags
     - ./plugins:/opt/airflow/plugins
