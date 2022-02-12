@@ -4,8 +4,13 @@
 fernet_key = ""
 
 metadata_db {
-  name = "airflow"
+  db_name  = "airflow"
   username = "airflow"
   password = "airflow"
-  port = 5432
+  port     = 5432
 }
+
+# When true, triggers a new deployment for each ecs service
+# This can be useful when updating tasks to use a newer container image with same
+# image/tag combination (e.g., myimage:latest)
+force_new_ecs_service_deployment = true

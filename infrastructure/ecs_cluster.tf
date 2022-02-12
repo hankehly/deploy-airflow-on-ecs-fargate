@@ -1,10 +1,20 @@
 # The ECS cluster that hosts our airflow services
 resource "aws_ecs_cluster" "airflow" {
-  name               = "airflow"
-  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
+  name = "airflow"
   setting {
     name  = "containerInsights"
     value = "enabled"
+  }
+}
+
+resource "aws_ecs_cluster_capacity_providers" "airflow" {
+  cluster_name       = aws_ecs_cluster.airflow.name
+  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
+  # Place all tasks in fargate by default
+  default_capacity_provider_strategy {
+    base              = 1
+    weight            = 100
+    capacity_provider = "FARGATE"
   }
 }
 
@@ -265,6 +275,12 @@ locals {
       name  = "AIRFLOW__CELERY__RESULT_BACKEND_SECRET"
       value = substr(aws_secretsmanager_secret.celery_result_backend.name, 45, -1)
     },
+    {
+      # Gotcha: Even if you set this to "True" in airflow.cfg
+      # an environment variable overrides it to False
+      name  = "AIRFLOW__CORE__LOAD_EXAMPLES"
+      value = "True"
+    }
   ]
 
   airflow_cloud_watch_metrics_namespace = "DeployAirflowOnECSFargate"

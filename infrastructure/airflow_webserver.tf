@@ -181,7 +181,7 @@ resource "aws_ecs_service" "airflow_webserver" {
   }
   # This can be used to update tasks to use a newer container image with same
   # image/tag combination (e.g., myimage:latest)
-  force_new_deployment = true
+  force_new_deployment = var.force_new_ecs_service_deployment
 }
 
 # For this example, we want to save money by scaling to zero at night when we don't need to access the service.

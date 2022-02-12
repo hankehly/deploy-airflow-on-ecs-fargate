@@ -47,7 +47,7 @@ resource "aws_db_instance" "airflow_metadata_db" {
   # Not suitable for production.
   apply_immediately   = true
   skip_final_snapshot = true
-  name                = var.metadata_db.name
+  db_name             = var.metadata_db.db_name
   username            = var.metadata_db.username
   password            = var.metadata_db.password
   port                = var.metadata_db.port
