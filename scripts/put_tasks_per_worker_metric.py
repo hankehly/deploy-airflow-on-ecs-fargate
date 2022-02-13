@@ -95,7 +95,7 @@ if __name__ == "__main__":
         task_count = get_task_count_where_state(states=[State.QUEUED, State.RUNNING])
         logging.info(f"Number of tasks in queued/running state: {task_count}")
 
-        worker_service = ecs.descibe_services(
+        worker_service = ecs.describe_services(
             cluster=args.cluster_name, services=[args.worker_service_name]
         )["services"][0]
         worker_count = worker_service["pendingCount"] + worker_service["runningCount"]
