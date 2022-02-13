@@ -52,6 +52,8 @@ resource "aws_ecs_task_definition" "airflow_metrics" {
         aws_ecs_cluster.airflow.name,
         "--metric-name",
         local.tasks_per_worker_metric.metric_name,
+        "--worker-service-name",
+        aws_ecs_service.airflow_worker.name,
         "--region-name",
         var.aws_region
       ]

@@ -142,7 +142,6 @@ resource "aws_ecs_service" "airflow_worker" {
   }
   deployment_maximum_percent         = 200
   deployment_minimum_healthy_percent = 100
-
   # Workers are autoscaled depending on the state of the broker queue, so there is no
   # need to specify a desired_count here (the default is 0)
   desired_count = 0
