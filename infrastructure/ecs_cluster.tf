@@ -235,20 +235,21 @@ resource "aws_iam_role_policy_attachment" "airflow_task_storage" {
   policy_arn = aws_iam_policy.airflow_task_storage.arn
 }
 
-# A policy to allow the metrics service to get/send metrics to CloudWatch. These
-# permissions only required by the metrics service; but to simplify the config for
-# demonstration purposes, we grant airflow services the same permissions.
-resource "aws_iam_policy" "airflow_cloudwatch_put_metric_data" {
-  name_prefix = "airflow-cloudwatch-put-metric-data-"
+# A policy to allow the metrics service to fetch ECS service information and send
+# metrics to CloudWatch. These permissions are only required by the metrics service;
+# but to simplify the config for demonstration purposes, all airflow services get
+# the same permissions.
+resource "aws_iam_policy" "airflow_metrics" {
+  name_prefix = "airflow-metrics-"
   path        = "/"
-  description = "Grant permissions needed to send metric data to cloudwatch."
+  description = "Grant permissions needed for metrics service to get service information from ECS and send metric data to cloudwatch."
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Effect = "Allow"
         Action = [
-          "cloudwatch:GetMetricData",
+          "ecs:DescribeServices",
           "cloudwatch:PutMetricData"
         ]
         Resource = "*"
@@ -257,9 +258,9 @@ resource "aws_iam_policy" "airflow_cloudwatch_put_metric_data" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "airflow_cloudwatch_put_metric_data" {
+resource "aws_iam_role_policy_attachment" "airflow_metrics" {
   role       = aws_iam_role.airflow_task.name
-  policy_arn = aws_iam_policy.airflow_cloudwatch_put_metric_data.arn
+  policy_arn = aws_iam_policy.airflow_metrics.arn
 }
 
 locals {
