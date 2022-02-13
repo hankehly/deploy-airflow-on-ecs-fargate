@@ -92,7 +92,7 @@ if __name__ == "__main__":
     ecs = session.create_client("ecs", region_name=args.region_name)
 
     while True:
-        task_count = get_task_count_where_state(in_=[State.QUEUED, State.RUNNING])
+        task_count = get_task_count_where_state(states=[State.QUEUED, State.RUNNING])
         logging.info(f"Number of tasks in queued/running state: {task_count}")
 
         worker_service = ecs.descibe_services(
