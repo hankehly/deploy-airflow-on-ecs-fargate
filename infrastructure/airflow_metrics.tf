@@ -1,7 +1,9 @@
 locals {
-  tasks_per_worker_metric = {
-    namespace   = "DeployAirflowOnECSFargate"
-    metric_name = "TasksPerWorker"
+  airflow_worker_autoscaling_metric = {
+    namespace                    = "DeployAirflowOnECSFargate"
+    metric_name                  = "CapacityProviderReservation"
+    metric_unit                  = "Percent"
+    target_tracking_target_value = 100
   }
 }
 
@@ -45,17 +47,21 @@ resource "aws_ecs_task_definition" "airflow_metrics" {
         "python"
       ]
       command = [
-        "scripts/put_tasks_per_worker_metric.py",
+        "scripts/put_airflow_worker_autoscaling_metric_data.py",
         "--namespace",
-        local.tasks_per_worker_metric.namespace,
+        local.airflow_worker_autoscaling_metric.namespace,
         "--cluster-name",
         aws_ecs_cluster.airflow.name,
         "--metric-name",
-        local.tasks_per_worker_metric.metric_name,
+        local.airflow_worker_autoscaling_metric.metric_name,
+        "--metric-unit",
+        local.airflow_worker_autoscaling_metric.metric_unit,
         "--worker-service-name",
         aws_ecs_service.airflow_worker.name,
         "--region-name",
-        var.aws_region
+        var.aws_region,
+        "--period",
+        "10"
       ]
       environment = local.airflow_task_common_environment
       user        = "50000:0"

@@ -16,50 +16,6 @@ resource "aws_cloudwatch_log_group" "airflow_worker" {
   retention_in_days = 1
 }
 
-# An example of how to send logs to multiple destinations
-# resource "aws_s3_bucket_object" "airflow_worker_fluentbit_config" {
-#   bucket  = aws_s3_bucket.airflow.bucket
-#   key     = "fluentbit_config/airflow_worker.conf"
-#   acl     = "private"
-#   content = <<-EOT
-#   [OUTPUT]
-#       Name   cloudwatch_logs
-#       Match  *
-#       region ${var.aws_region}
-#       log_key log
-#       log_group_name /deploy-airflow-on-ecs-fargate/airflow-worker-fluentbit
-#       log_stream_prefix airflow-worker-fluentbit-
-#   [OUTPUT]
-#       Name   firehose
-#       Match  *
-#       region ${var.aws_region}
-#       delivery_stream ${aws_kinesis_firehose_delivery_stream.airflow_worker_stream.name}
-#   EOT
-# }
-# {
-#   name      = "fluentbit"
-#   essential = true
-#   image     = local.fluentbit_image,
-#   firelensConfiguration = {
-#     type = "fluentbit"
-#     # Gotcha: Tasks hosted on AWS Fargate only support the file configuration file type.
-#     # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/firelens-taskdef.html
-#     options = {
-#       config-file-type  = "file"
-#       config-file-value = ""
-#     }
-#   }
-#   logConfiguration = {
-#     logDriver = "awslogs"
-#     options = {
-#       awslogs-group         = aws_cloudwatch_log_group.airflow_worker_fluentbit.name
-#       awslogs-region        = var.aws_region
-#       awslogs-stream-prefix = "airflow-worker-fluentbit"
-#     }
-#   },
-#   memoryReservation = 50
-# }
-
 # Worker service task definition
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_task_definition
 resource "aws_ecs_task_definition" "airflow_worker" {
@@ -162,15 +118,10 @@ resource "aws_ecs_service" "airflow_worker" {
   # This can be used to update tasks to use a newer container image with same
   # image/tag combination (e.g., myimage:latest)
   force_new_deployment = var.force_new_ecs_service_deployment
-  # If a capacityProviderStrategy is specified, the launchType parameter must be omitted.
-  launch_type = "FARGATE"
-  # To use FARGATE_SPOT instead of FARGATE, replace the launch_type with the below
-  # capacity_provider_strategy block
-  # capacity_provider_strategy {
-  #   capacity_provider = "FARGATE_SPOT"
-  #   # 100% of tasks should use fargate spot
-  #   weight = 1
-  # }
+  capacity_provider_strategy {
+    capacity_provider = "FARGATE_SPOT"
+    weight            = 1
+  }
 }
 
 # For this example, we want to save money by scaling to zero at night when we don't need to access the service.
@@ -200,13 +151,11 @@ resource "aws_appautoscaling_policy" "airflow_worker" {
   scalable_dimension = aws_appautoscaling_target.airflow_worker.scalable_dimension
   service_namespace  = aws_appautoscaling_target.airflow_worker.service_namespace
   target_tracking_scaling_policy_configuration {
-    target_value       = 5
-    scale_in_cooldown  = 300
-    scale_out_cooldown = 300
+    target_value = local.airflow_worker_autoscaling_metric.target_tracking_target_value
     customized_metric_specification {
-      namespace   = local.tasks_per_worker_metric.namespace
-      metric_name = local.tasks_per_worker_metric.metric_name
-      statistic   = "Maximum"
+      namespace   = local.airflow_worker_autoscaling_metric.namespace
+      metric_name = local.airflow_worker_autoscaling_metric.metric_name
+      statistic   = "Average"
       dimensions {
         name  = "ClusterName"
         value = aws_ecs_cluster.airflow.name
