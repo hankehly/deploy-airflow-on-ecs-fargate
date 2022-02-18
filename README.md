@@ -160,35 +160,31 @@ Airflow Webserver, Scheduler & Metrics | CloudWatch
 Airflow Standalone Task | S3 via Kinesis Firehose
 Airflow Worker | S3 via Airflow's builtin remote log handler
 
+## Cost
+
+Todo: Compare with MWAA
+
 ## Autoscaling
 
+target tracking autoscaling policy
+
+hints from AWS
 https://docs.aws.amazon.com/mwaa/latest/userguide/mwaa-autoscaling.html
-
-
-
-### Scale down
-When the RunningTasks and QueuedTasks metrics sum to zero for a period of two minutes, Amazon MWAA requests Fargate to set the number of workers to the environment's min-workers value.
-stopTimeout value of 120 second.
-
-The autoscaling policies documented in this repository are just examples based on personal preference. They may not be exactly what you need, but do offer a good starting point.
-
-Autoscaling is accomplished in a different way depending on the component type. The webserver and scheduler use [scheduled scaling](https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-scheduled-scaling.html) to scale to zero at night (assuming you have no tasks running overnight) and 1 during the day. The number of celery workers increases and decreases in steps based on 2 Cloud Watch alarms tracking the SQS celery broker.
-1. When `ApproximateNumberOfMessagesVisible` exceeds zero, we increase the number of tasks by 1. We check this condition every 60 seconds.
-2. When `NumberOfEmptyReceives` exceeds zero for 15 consecutive minutes, we decrease the number of tasks by 1.
 
 ## Examples
 
-### Run an arbitrary workload as a standalone task
+### Run an arbitrary command as a standalone task
+
 ```shell
-$ python3 scripts/run_task.py --public-subnet-ids subnet-*** --security-group sg-*** --command \
+python3 scripts/run_task.py --command \
   'users create --username airflow --firstname airflow --lastname airflow --password airflow --email airflow@example.com --role Admin'
 ```
 
 ### Get a shell into a service container using [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html).
 
-This step requires your to first install the `awscli` [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
+First install the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) for `awscli`.
 ```shell
-$ aws ecs execute-command --cluster airflow --task 9db18526dd8341169fbbe3e2b74547fb --container scheduler --interactive --command "/bin/bash"
+aws ecs execute-command --cluster airflow --task 9db18526dd8341169fbbe3e2b74547fb --container scheduler --interactive --command "/bin/bash"
 
 The Session Manager plugin was installed successfully. Use the AWS CLI to start a session.
 
@@ -218,17 +214,17 @@ If this happens, you can often mitigate the problem by forcing a new container d
 ### Manually scale the webserver to zero
 ```shell
 # macos
-$ export TWO_MINUTES_LATER=$(date -u -v+2M '+%Y-%m-%dT%H:%M:00')
+export TWO_MINUTES_LATER=$(date -u -v+2M '+%Y-%m-%dT%H:%M:00')
 # linux
-$ export TWO_MINUTES_LATER=$(date -u --date='2 minutes' '+%Y-%m-%dT%H:%M:00')
-$ docker run --rm -v "${HOME}/.aws:/root/.aws" amazon/aws-cli application-autoscaling put-scheduled-action \
+export TWO_MINUTES_LATER=$(date -u --date='2 minutes' '+%Y-%m-%dT%H:%M:00')
+aws application-autoscaling put-scheduled-action \
   --service-namespace ecs \
   --scalable-dimension ecs:service:DesiredCount \
   --resource-id service/airflow/airflow-webserver \
   --scheduled-action-name scale-webserver-to-zero \
   --schedule "at(${TWO_MINUTES_LATER})" \
   --scalable-target-action MinCapacity=0,MaxCapacity=0
-$ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
+aws application-autoscaling describe-scheduled-actions --service-namespace ecs
 {
     [
         (..redacted)
@@ -253,8 +249,3 @@ $ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
 
 ### Notes
 - To avoid collisions with other AWS resource, I often use `name_prefix` instead of `name` in terraform configuration files. This is also useful for resources like SecretManager secrets, which require a 7 day wait period before full deletion.
-
-### Todo
-- [ ] Use [Amazon MWAA's pattern](https://docs.aws.amazon.com/mwaa/latest/userguide/mwaa-autoscaling.html#mwaa-autoscaling-how) for autoscaling
-- [ ] Try slimming down the image size
-- [ ] Add cost comparison to MWAA
