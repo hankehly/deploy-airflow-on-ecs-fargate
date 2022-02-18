@@ -1,41 +1,50 @@
 # deploy-airflow-on-ecs-fargate
-An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) on Amazon ECS Fargate
+An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) on Amazon ECS Fargate.
 
 #### Table of contents
-- [deploy-airflow-on-ecs-fargate](#deploy-airflow-on-ecs-fargate)
-      - [Table of contents](#table-of-contents)
-    - [Project structure](#project-structure)
-  - [Getting started](#getting-started)
-    - [Setup a local development environment](#setup-a-local-development-environment)
-    - [Setup an ECS cluster](#setup-an-ecs-cluster)
-    - [Standalone Tasks](#standalone-tasks)
-    - [Logging](#logging)
-    - [Autoscaling](#autoscaling)
-      - [Scale down](#scale-down)
-    - [Examples](#examples)
-      - [Run an arbitrary workload as a standalone task](#run-an-arbitrary-workload-as-a-standalone-task)
-      - [Get a shell into a service container using ECS exec.](#get-a-shell-into-a-service-container-using-ecs-exec)
-      - [Manually scale the webserver to zero](#manually-scale-the-webserver-to-zero)
-    - [Notes](#notes)
-    - [Todo](#todo)
+- [Summary](#summary)
+  - [Project structure](#project-structure)
+- [Getting started](#getting-started)
+  - [Setup a local development environment](#setup-a-local-development-environment)
+  - [Setup an ECS cluster](#setup-an-ecs-cluster)
+- [Standalone Tasks](#standalone-tasks)
+- [Logging](#logging)
+- [Autoscaling](#autoscaling)
+  - [Scale down](#scale-down)
+- [Examples](#examples)
+  - [Run an arbitrary workload as a standalone task](#run-an-arbitrary-workload-as-a-standalone-task)
+  - [Get a shell into a service container using ECS exec.](#get-a-shell-into-a-service-container-using-ecs-exec)
+  - [Manually scale the webserver to zero](#manually-scale-the-webserver-to-zero)
+
+## Summary
+
+The purpose of this project is to demonstrate how to deploy [Apache Airflow](https://github.com/apache/airflow) on AWS Elastic Container Service using the Fargate capacity provider. The code in this repository is just an example to help programmers get started with Airflow on ECS, but you are free to deploy it using the steps described in [Setup an ECS cluster](#setup-an-ecs-cluster).
+
+Airflow and ECS have many features and configuration options. I make use of many of them in this project. For example:
+- autoscale workers to zero
+- route airflow service logs to CloudWatch and to Kinesis Firehose using [fluentbit](https://fluentbit.io/)
+- use [remote_logging](https://airflow.apache.org/docs/apache-airflow/stable/logging-monitoring/logging-tasks.html#logging-for-tasks) to send/receive worker logs to/from S3
+- use the AWS provider [SecretsManagerBackend](https://airflow.apache.org/docs/apache-airflow-providers-amazon/stable/secrets-backends/aws-secrets-manager.html) to store/use sensitive configuration parameters in SecretsManager
+- run a single command as standalone ECS task (eg. `airflow db init`)
+- get a shell into a running container via ECS exec
 
 ### Project structure
 
 ```
 ├── build .............................. anything related to building container images
-│   ├── dev ............................ development image referenced by docker-compose.yml
-│   ├── prod ........................... production image uploaded to ECR
-│   └── requirements ................... pypi packages installed container images
-├── dags ............................... mapped to AIRFLOW_HOME/dags
-├── deploy_airflow_on_ecs_fargate ...... import-able python package for configuration files / use in dags (mapped to AIRFLOW_HOME/deploy_airflow_on_ecs_fargate)
+│   ├── dev ............................ development config referenced by docker-compose.yml
+│   └── prod ........................... production config used to build image sent to ECR
+├── dags ............................... AIRFLOW_HOME/dags directory
+├── deploy_airflow_on_ecs_fargate ...... arbitrary python package import-able from dags/plugins used to store config files / extra python modules
 │   ├── celery_config.py ............... custom celery configuration
 │   └── logging_config.py .............. custom logging configuration
-├── docker-compose.yml
+├── docker-compose.yml ................. development environment build config
 ├── infrastructure ..................... ECS terraform configuration
-│   ├── terraform.tfvars.template ...... a template for defining sensitive variables required to deploy infrastructure
+│   ├── terraform.tfvars.template ...... a template variables file for defining sensitive information required to deploy infrastructure
 │   └── *.tf ........................... example ECS cluster terraform configuration
-├── plugins ............................ mapped to AIRFLOW_HOME/plugins
+├── plugins ............................ AIRFLOW_HOME/plugins directory
 └── scripts
+    ├── put_airflow_worker_xxx.py ...... script used by airflow_metrics ECS service to send custom autoscaling metrics to cloudwatch
     └── run_task.py .................... an example python script for running standalone tasks on the ECS cluster
 ```
 
@@ -43,25 +52,37 @@ An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) 
 
 ### Setup a local development environment
 
-```
-docker compose up -d
+1. Initialize the metadata db
+
+```shell
 docker compose run --rm airflow-cli db init
+```
+
+2. Create an admin user
+
+```shell
 docker compose run --rm airflow-cli users create --email airflow@example.com --firstname airflow --lastname airflow --password airflow --username airflow --role Admin
+```
+
+3. Start all services
+
+```shell
+docker compose up -d
 ```
 
 ### Setup an ECS cluster
 
 1. Initialize the terraform directory
 ```shell
-$ terraform -chdir=infrastructure init
+terraform -chdir=infrastructure init
 ```
-2. Create the ECR repository to store the customized airflow image.
+2. Create the ECR repository to store our custom airflow image.
 ```shell
-$ terraform -chdir=infrastructure apply -target=aws_ecr_repository.airflow
+terraform -chdir=infrastructure apply -target=aws_ecr_repository.airflow
 ```
 3. Obtain the repository URI via `awscli` or the [AWS console](https://console.aws.amazon.com/ecr/repositories).
 ```shell
-$ aws ecr describe-repositories
+aws ecr describe-repositories
 {
     "repositories": [
         {
@@ -83,31 +104,30 @@ $ aws ecr describe-repositories
 ```
 4. Authenticate your preferred container image build tool with AWS.
 ```shell
-$ aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ***.dkr.ecr.us-east-1.amazonaws.com
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ***.dkr.ecr.us-east-1.amazonaws.com
 ```
 5. Build and push the container image.
 ```shell
-$ export REPO_URI="***.dkr.ecr.us-east-1.amazonaws.com/deploy-airflow-on-ecs-fargate-airflow"
-$ docker buildx build -t "${REPO_URI}" -f build/prod/Containerfile --platform linux/amd64 .
-$ docker push "${REPO_URI}"
+export REPO_URI="***.dkr.ecr.us-east-1.amazonaws.com/deploy-airflow-on-ecs-fargate-airflow"
+docker buildx build -t "${REPO_URI}" -f build/prod/Containerfile --platform linux/amd64 .
+docker push "${REPO_URI}"
 ```
 6. Deploy the remaining infrastructure.
 ```shell
-$ terraform -chdir=infrastructure plan
-$ terraform -chdir=infrastructure apply
+terraform -chdir=infrastructure apply
 ```
 7. Initialize the airflow metadata database.
 ```shell
-$ python3 scripts/run_task.py --wait-tasks-stopped --command 'db init'
+python3 scripts/run_task.py --wait-tasks-stopped --command 'db init'
 ```
 8. Create an admin user.
 ```shell
-$ python3 scripts/run_task.py --wait-tasks-stopped --command \
+python3 scripts/run_task.py --wait-tasks-stopped --command \
   'users create --username airflow --firstname airflow --lastname airflow --password airflow --email airflow@example.com --role Admin'
 ```
 9. Find and open the airflow webserver load balancer URI.
 ```shell
-$ aws elbv2 describe-load-balancers
+aws elbv2 describe-load-balancers
 {
     "LoadBalancers": [
         {
@@ -120,29 +140,33 @@ $ aws elbv2 describe-load-balancers
 
 <img width="1563" alt="airflow-home" src="https://user-images.githubusercontent.com/11639738/151594663-0895e62e-2fb3-4a6d-8bd5-98e9d8f1af90.png">
 
-### Standalone Tasks
+## Standalone Tasks
 
 A common need is to be able to execute an arbitrary command in the cluster context. For this purpose, AWS has the [run-task](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_run_task.html) API.
 
-This repository contains terraform code to register a template task definition named "airflow-standalone-task" for use with run-task. When we want to submit a standalone workload to the ECS cluster, we can run `aws ecs run-task` and specify the standalone task definition as well as override container definition parameters like cpu, memory and command. This gives us the ability to run arbitrary commands with customized resources.
+The terraform code in this repository registers a template task definition named `airflow-standalone-task`. To run arbitrary commands on the ECS cluster, we override the default parameters in the task definition when calling `run-task`. For example, we can run the command `airflow db init` while specifying 1024 memory and 512 cpu.
 
-### Logging
+```shell
+python3 scripts/run_task.py --cpu 512 --memory 1024 --command 'db init'
+```
 
-This repository demonstrates various logging setups.
+## Logging
 
-webserver | cloudwatch
-scheduler | cloudwatch
-standalone_task | s3 (via kinesis firehose)
-metrics | cloudwatch
-worker | cloudwatch and s3 (via Airflow s3 task log exporter)
+This repository demonstrates various logging configurations.
 
-Gotcha: If you don't add permissions to access S3 on the worker task, tasks fail but leave no helpful message about why.
+Component | Log destination
+:- | :-
+Airflow Webserver, Scheduler & Metrics | CloudWatch
+Airflow Standalone Task | S3 via Kinesis Firehose
+Airflow Worker | S3 via Airflow's builtin remote log handler
 
-### Autoscaling
+## Autoscaling
 
 https://docs.aws.amazon.com/mwaa/latest/userguide/mwaa-autoscaling.html
 
-#### Scale down
+
+
+### Scale down
 When the RunningTasks and QueuedTasks metrics sum to zero for a period of two minutes, Amazon MWAA requests Fargate to set the number of workers to the environment's min-workers value.
 stopTimeout value of 120 second.
 
@@ -152,15 +176,15 @@ Autoscaling is accomplished in a different way depending on the component type. 
 1. When `ApproximateNumberOfMessagesVisible` exceeds zero, we increase the number of tasks by 1. We check this condition every 60 seconds.
 2. When `NumberOfEmptyReceives` exceeds zero for 15 consecutive minutes, we decrease the number of tasks by 1.
 
-### Examples
+## Examples
 
-#### Run an arbitrary workload as a standalone task
+### Run an arbitrary workload as a standalone task
 ```shell
 $ python3 scripts/run_task.py --public-subnet-ids subnet-*** --security-group sg-*** --command \
   'users create --username airflow --firstname airflow --lastname airflow --password airflow --email airflow@example.com --role Admin'
 ```
 
-#### Get a shell into a service container using [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html).
+### Get a shell into a service container using [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html).
 
 This step requires your to first install the `awscli` [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
 ```shell
@@ -191,7 +215,7 @@ An error occurred (InvalidParameterException) when calling the ExecuteCommand op
 ```
 If this happens, you can often mitigate the problem by forcing a new container deployment.
 
-#### Manually scale the webserver to zero
+### Manually scale the webserver to zero
 ```shell
 # macos
 $ export TWO_MINUTES_LATER=$(date -u -v+2M '+%Y-%m-%dT%H:%M:00')
@@ -224,6 +248,8 @@ $ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
     ]
 }
 ```
+
+---
 
 ### Notes
 - To avoid collisions with other AWS resource, I often use `name_prefix` instead of `name` in terraform configuration files. This is also useful for resources like SecretManager secrets, which require a 7 day wait period before full deletion.
