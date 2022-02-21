@@ -9,6 +9,7 @@ An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) 
   - [Setup an ECS cluster](#setup-an-ecs-cluster)
 - [Standalone Tasks](#standalone-tasks)
 - [Logging](#logging)
+- [Cost](#cost)
 - [Autoscaling](#autoscaling)
   - [Scale down](#scale-down)
 - [Examples](#examples)
@@ -18,17 +19,21 @@ An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) 
 
 ## Summary
 
-The purpose of this project is to demonstrate how to deploy [Apache Airflow](https://github.com/apache/airflow) on AWS Elastic Container Service using the Fargate capacity provider. The code in this repository is just an example to help programmers get started with Airflow on ECS, but you are free to deploy it using the steps described in [Setup an ECS cluster](#setup-an-ecs-cluster).
+The purpose of this project is to demonstrate how to deploy [Apache Airflow](https://github.com/apache/airflow) on AWS Elastic Container Service using the Fargate capacity provider. The code in this repository is meant as an example to help programmers get started, but feel free to actually deploy it using the steps described in [Setup an ECS cluster](#setup-an-ecs-cluster).
 
-Airflow and ECS have many features and configuration options. I make use of many of them in this project. For example:
+Airflow and ECS have many features and configuration options. I try to cover many use cases in this project. For example:
 - autoscale workers to zero
 - route airflow service logs to CloudWatch and to Kinesis Firehose using [fluentbit](https://fluentbit.io/)
 - use [remote_logging](https://airflow.apache.org/docs/apache-airflow/stable/logging-monitoring/logging-tasks.html#logging-for-tasks) to send/receive worker logs to/from S3
-- use the AWS provider [SecretsManagerBackend](https://airflow.apache.org/docs/apache-airflow-providers-amazon/stable/secrets-backends/aws-secrets-manager.html) to store/use sensitive configuration parameters in SecretsManager
+- use the AWS provider [SecretsManagerBackend](https://airflow.apache.org/docs/apache-airflow-providers-amazon/stable/secrets-backends/aws-secrets-manager.html) to store/consume sensitive configuration options in [SecretsManager](https://aws.amazon.com/secrets-manager/)
 - run a single command as standalone ECS task (eg. `airflow db init`)
 - get a shell into a running container via ECS exec
 
+I think these configuration examples will prove helpful even if you aren't running Airflow on ECS.
+
 ### Project structure
+
+Please see the following tree for a description of each main directory/file. This layout is not based on any standard. One could move the contents of `scripts` into `deploy_airflow_on_ecs_fargate`. Files named `*_config.py` could be placed in a separate `config` directory. The location of a file is less important than the quality of the code inside it.
 
 ```
 ├── build .............................. anything related to building container images
@@ -76,11 +81,15 @@ docker compose up -d
 ```shell
 terraform -chdir=infrastructure init
 ```
-2. Create the ECR repository to store our custom airflow image.
+2. (Optional) Create a `terraform.tfvars` file and set the variables `aws_region`, `metadata_db` and `fernet_key`
+```
+cp infrastructure/terraform.tfvars.template infrastructure/terraform.tfvars
+```
+3. Create the ECR repository to store the custom airflow image.
 ```shell
 terraform -chdir=infrastructure apply -target=aws_ecr_repository.airflow
 ```
-3. Obtain the repository URI via `awscli` or the [AWS console](https://console.aws.amazon.com/ecr/repositories).
+4. Obtain the repository URI via `awscli` or the [AWS console](https://console.aws.amazon.com/ecr/repositories).
 ```shell
 aws ecr describe-repositories
 {
@@ -102,36 +111,36 @@ aws ecr describe-repositories
     ]
 }
 ```
-4. Authenticate your preferred container image build tool with AWS.
+5. Authenticate your preferred container image build tool with AWS. The following works with Docker and [Podman](https://podman.io/).
 ```shell
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ***.dkr.ecr.us-east-1.amazonaws.com
 ```
-5. Build and push the container image.
+6. Build and push the container image.
 ```shell
 export REPO_URI="***.dkr.ecr.us-east-1.amazonaws.com/deploy-airflow-on-ecs-fargate-airflow"
 docker buildx build -t "${REPO_URI}" -f build/prod/Containerfile --platform linux/amd64 .
 docker push "${REPO_URI}"
 ```
-6. Deploy the remaining infrastructure.
+7. Deploy the remaining infrastructure.
 ```shell
 terraform -chdir=infrastructure apply
 ```
-7. Initialize the airflow metadata database.
+8. Initialize the airflow metadata database. Here we run the `db init` command as a standalone ECS task.
 ```shell
 python3 scripts/run_task.py --wait-tasks-stopped --command 'db init'
 ```
-8. Create an admin user.
+9. Create an admin user using the same method as `db init`.
 ```shell
 python3 scripts/run_task.py --wait-tasks-stopped --command \
   'users create --username airflow --firstname airflow --lastname airflow --password airflow --email airflow@example.com --role Admin'
 ```
-9. Find and open the airflow webserver load balancer URI.
+10. Find and open the airflow webserver load balancer URI.
 ```shell
 aws elbv2 describe-load-balancers
 {
     "LoadBalancers": [
         {
-            "DNSName": "airweb20220201213050041900000016-231209530.us-east-1.elb.amazonaws.com",
+            "DNSName": "airflow-webserver-231209530.us-east-1.elb.amazonaws.com",
 	    (..redacted)
         }
     ]
@@ -142,7 +151,7 @@ aws elbv2 describe-load-balancers
 
 ## Standalone Tasks
 
-A common need is to be able to execute an arbitrary command in the cluster context. For this purpose, AWS has the [run-task](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_run_task.html) API.
+A common requirement is the ability to execute an arbitrary command in the cluster context. AWS provides the [run-task](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_run_task.html) API for this purpose.
 
 The terraform code in this repository registers a template task definition named `airflow-standalone-task`. To run arbitrary commands on the ECS cluster, we override the default parameters in the task definition when calling `run-task`. For example, we can run the command `airflow db init` while specifying 1024 memory and 512 cpu.
 
@@ -157,12 +166,14 @@ This repository demonstrates various logging configurations.
 Component | Log destination
 :- | :-
 Airflow Webserver, Scheduler & Metrics | CloudWatch
-Airflow Standalone Task | S3 via Kinesis Firehose
+Airflow Standalone Task | S3 via Kinesis Firehose (query-able with Athena!)
 Airflow Worker | S3 via Airflow's builtin remote log handler
 
 ## Cost
 
-Todo: Compare with MWAA
+A conservative estimate **excluding free tier** in which all ECS services run 24 hours a day (workers run at max capacity for 6 hours) will cost around 200 USD per month. A similar setup with [Amazon Managed Workflows for Apache Airflow (MWAA)](https://aws.amazon.com/managed-workflows-for-apache-airflow) will run 360 USD per month.
+
+There are multiple ways to further limit costs. For example, you can limit the number of workers, or scale your webserver to zero during hours of no usage.
 
 ## Autoscaling
 
