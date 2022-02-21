@@ -11,7 +11,6 @@ An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) 
 - [Logging](#logging)
 - [Cost](#cost)
 - [Autoscaling](#autoscaling)
-  - [Scale down](#scale-down)
 - [Examples](#examples)
   - [Run an arbitrary workload as a standalone task](#run-an-arbitrary-workload-as-a-standalone-task)
   - [Get a shell into a service container using ECS exec.](#get-a-shell-into-a-service-container-using-ecs-exec)
@@ -19,17 +18,18 @@ An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) 
 
 ## Summary
 
-The purpose of this project is to demonstrate how to deploy [Apache Airflow](https://github.com/apache/airflow) on AWS Elastic Container Service using the Fargate capacity provider. The code in this repository is meant as an example to help programmers get started, but feel free to actually deploy it using the steps described in [Setup an ECS cluster](#setup-an-ecs-cluster).
+The purpose of this project is to demonstrate how to deploy [Apache Airflow](https://github.com/apache/airflow) on AWS Elastic Container Service using the Fargate capacity provider. The code in this repository is meant as an example to assist programmers create their own configuration. However, one can deploy it using the steps described in [Setup an ECS cluster](#setup-an-ecs-cluster).
 
-Airflow and ECS have many features and configuration options. I try to cover many use cases in this project. For example:
+Airflow and ECS have many features and configuration options. This project covers many use cases. For example:
 - autoscale workers to zero
 - route airflow service logs to CloudWatch and to Kinesis Firehose using [fluentbit](https://fluentbit.io/)
 - use [remote_logging](https://airflow.apache.org/docs/apache-airflow/stable/logging-monitoring/logging-tasks.html#logging-for-tasks) to send/receive worker logs to/from S3
 - use the AWS provider [SecretsManagerBackend](https://airflow.apache.org/docs/apache-airflow-providers-amazon/stable/secrets-backends/aws-secrets-manager.html) to store/consume sensitive configuration options in [SecretsManager](https://aws.amazon.com/secrets-manager/)
 - run a single command as standalone ECS task (eg. `airflow db init`)
 - get a shell into a running container via ECS exec
+- send Airflow statsd metrics to CloudWatch
 
-I think these configuration examples will prove helpful even if you aren't running Airflow on ECS.
+These configuration examples should prove helpful even to those who aren't running Airflow on ECS.
 
 ### Project structure
 
@@ -153,7 +153,7 @@ aws elbv2 describe-load-balancers
 
 A common requirement is the ability to execute an arbitrary command in the cluster context. AWS provides the [run-task](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_run_task.html) API for this purpose.
 
-The terraform code in this repository registers a template task definition named `airflow-standalone-task`. To run arbitrary commands on the ECS cluster, we override the default parameters in the task definition when calling `run-task`. For example, we can run the command `airflow db init` while specifying 1024 memory and 512 cpu.
+The terraform code in this repository registers a template task definition named `airflow-standalone-task`. To run arbitrary commands on the ECS cluster, override the default parameters in the task definition when calling `run-task`. For example, one can run the command `airflow db init` while specifying 1024 memory and 512 cpu.
 
 ```shell
 python3 scripts/run_task.py --cpu 512 --memory 1024 --command 'db init'
@@ -166,21 +166,22 @@ This repository demonstrates various logging configurations.
 Component | Log destination
 :- | :-
 Airflow Webserver, Scheduler & Metrics | CloudWatch
-Airflow Standalone Task | S3 via Kinesis Firehose (query-able with Athena!)
+Airflow Standalone Task | S3 via Kinesis Firehose (query-able with Athena)
 Airflow Worker | S3 via Airflow's builtin remote log handler
 
 ## Cost
 
-A conservative estimate **excluding free tier** in which all ECS services run 24 hours a day (workers run at max capacity for 6 hours) will cost around 200 USD per month. A similar setup with [Amazon Managed Workflows for Apache Airflow (MWAA)](https://aws.amazon.com/managed-workflows-for-apache-airflow) will run 360 USD per month.
+A conservative estimate **excluding free tier** in which all ECS services run 24 hours a day (workers run at max capacity for 6 hours) costs around 200 USD per month. A similar configuration with [Amazon Managed Workflows for Apache Airflow (MWAA)](https://aws.amazon.com/managed-workflows-for-apache-airflow) will cost at least 360 USD per month.
 
-There are multiple ways to further limit costs. For example, you can limit the number of workers, or scale your webserver to zero during hours of no usage.
+One can further limit costs by decreasing the max number of workers, or stopping the webserver and scheduler at night.
 
 ## Autoscaling
 
-target tracking autoscaling policy
+Airflow workers scale from 0-5 based on the current number of running, unpaused Airflow tasks. The Airflow statsd module does not provide this exact information, so I created a separate "metrics" ECS service to periodically query the metadata-db, compute the "desired worker count" using formulas described in the [MWAA documentation](https://docs.aws.amazon.com/mwaa/latest/userguide/mwaa-autoscaling.html) and [this AWS blog post](https://aws.amazon.com/blogs/containers/deep-dive-on-amazon-ecs-cluster-auto-scaling/), and send the custom metric data to CloudWatch.
 
-hints from AWS
-https://docs.aws.amazon.com/mwaa/latest/userguide/mwaa-autoscaling.html
+### Webserver
+
+TargetTracking request count
 
 ## Examples
 
