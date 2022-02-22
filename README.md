@@ -177,15 +177,15 @@ One can further limit costs by decreasing the max number of workers, or stopping
 
 ## Autoscaling
 
-Airflow workers scale from 0-5 based on the current number of running, unpaused Airflow tasks. The Airflow statsd module does not provide this exact information, so I created a separate "metrics" ECS service to periodically query the metadata-db, compute the "desired worker count" using formulas described in the [MWAA documentation](https://docs.aws.amazon.com/mwaa/latest/userguide/mwaa-autoscaling.html) and [this AWS blog post](https://aws.amazon.com/blogs/containers/deep-dive-on-amazon-ecs-cluster-auto-scaling/), and send the custom metric data to CloudWatch.
+Airflow workers scale between 0-5 based on the current number of running, unpaused Airflow tasks. The Airflow statsd module does not provide this exact information, so I created a separate "metrics" ECS service to periodically query the metadata-db, compute the "desired worker count" using formulas described in the [MWAA documentation](https://docs.aws.amazon.com/mwaa/latest/userguide/mwaa-autoscaling.html) and [this AWS blog post](https://aws.amazon.com/blogs/containers/deep-dive-on-amazon-ecs-cluster-auto-scaling/), and send the custom metric data to CloudWatch. Metric data sent to CloudWatch is then used in a [target tracking scaling policy](https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html) to scale worker service containers.
 
-### Webserver
-
-TargetTracking request count
+The webserver and scheduler each scale to 1 in the morning and 0 at night using scheduled autoscaling. One could go a step further by using the `ALBRequestCountPerTarget` predefined metric to scale the webserver via a target tracking scaling policy.
 
 ## Examples
 
 ### Run an arbitrary command as a standalone task
+
+As described [above](#standalone-tasks), this repository registers a task definition named `airflow-standalone-task` for the purpose of running one-off commands in the cluster context. Take a look inside `scripts/run_task.py` to see how one can use the run-task API to override options like `command`, `cpu` and `memory` when running a standalone task.
 
 ```shell
 python3 scripts/run_task.py --command \
@@ -194,10 +194,15 @@ python3 scripts/run_task.py --command \
 
 ### Get a shell into a service container using [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html).
 
-First install the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) for `awscli`.
+One can use [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html) to get a shell into a running container. Install the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) for `awscli`, obtain the ID of the task container and execute the following command.
+
 ```shell
 aws ecs execute-command --cluster airflow --task 9db18526dd8341169fbbe3e2b74547fb --container scheduler --interactive --command "/bin/bash"
+```
 
+If successful, a terminal prompt will appear.
+
+```shell
 The Session Manager plugin was installed successfully. Use the AWS CLI to start a session.
 
 
@@ -217,13 +222,14 @@ root@9db18526dd8341169fbbe3e2b74547fb-2568554522:/opt/airflow# whoami
 root
 ```
 
-Sometimes ECS exec will fail with the following message:
+ECS exec may fail to create a session and display the following message. If this happens, one can often mitigate the problem by forcing a new container deployment.
+
 ```
 An error occurred (InvalidParameterException) when calling the ExecuteCommand operation: The execute command failed because execute command was not enabled when the task was run or the execute command agent isn’t running. Wait and try again or run a new task with execute command enabled and try again.
 ```
-If this happens, you can often mitigate the problem by forcing a new container deployment.
 
 ### Manually scale the webserver to zero
+
 ```shell
 # macos
 export TWO_MINUTES_LATER=$(date -u -v+2M '+%Y-%m-%dT%H:%M:00')
@@ -257,7 +263,5 @@ aws application-autoscaling describe-scheduled-actions --service-namespace ecs
 }
 ```
 
----
-
 ### Notes
-- To avoid collisions with other AWS resource, I often use `name_prefix` instead of `name` in terraform configuration files. This is also useful for resources like SecretManager secrets, which require a 7 day wait period before full deletion.
+- To avoid name collisions with existing AWS resources, I often use `name_prefix` instead of `name` in the terraform configuration. This feature is especially useful for resources like SecretManager secrets, which require a 7 day wait period before full deletion.
