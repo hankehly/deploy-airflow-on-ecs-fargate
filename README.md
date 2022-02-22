@@ -12,9 +12,9 @@ An example of how to deploy [Apache Airflow](https://github.com/apache/airflow) 
 - [Cost](#cost)
 - [Autoscaling](#autoscaling)
 - [Examples](#examples)
-  - [Run an arbitrary workload as a standalone task](#run-an-arbitrary-workload-as-a-standalone-task)
-  - [Get a shell into a service container using ECS exec.](#get-a-shell-into-a-service-container-using-ecs-exec)
-  - [Manually scale the webserver to zero](#manually-scale-the-webserver-to-zero)
+  - [Run an arbitrary command as a standalone task](#run-an-arbitrary-command-as-a-standalone-task)
+  - [Get a shell into a service container using ECS exec](#get-a-shell-into-a-service-container-using-ecs-exec)
+  - [Manually scale a service to zero](#manually-scale-a-service-to-zero)
 
 ## Summary
 
@@ -192,7 +192,7 @@ python3 scripts/run_task.py --command \
   'users create --username airflow --firstname airflow --lastname airflow --password airflow --email airflow@example.com --role Admin'
 ```
 
-### Get a shell into a service container using [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html).
+### Get a shell into a service container using [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html)
 
 One can use [ECS exec](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html) to get a shell into a running container. Install the [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) for `awscli`, obtain the ID of the task container and execute the following command.
 
