@@ -228,40 +228,33 @@ ECS exec may fail to create a session and display the following message. If this
 An error occurred (InvalidParameterException) when calling the ExecuteCommand operation: The execute command failed because execute command was not enabled when the task was run or the execute command agent isn’t running. Wait and try again or run a new task with execute command enabled and try again.
 ```
 
-### Manually scale the webserver to zero
+### Manually scale a service to zero
+
+There are multiple ways to scale services. Here are some options using the commandline.
+
+#### Update the service definition
+
+One can change the desired task count of a service via the `update-service` API. Scaling actions take effect immediately.
+
+```shell
+aws ecs update-service --cluster airflow --service airflow-webserver --desired-count 0
+```
+#### Use a scheduled autoscaling action
+
+If the service is registered as an autoscaling target (it is in this project), one can also set the desired count via a scheduled autoscaling action. This may be helpful if one wants to scale to N at a certain time.
 
 ```shell
 # macos
-export TWO_MINUTES_LATER=$(date -u -v+2M '+%Y-%m-%dT%H:%M:00')
+export TWO_HOURS_LATER=$(date -u -v+2H '+%Y-%m-%dT%H:%M:00')
+
 # linux
-export TWO_MINUTES_LATER=$(date -u --date='2 minutes' '+%Y-%m-%dT%H:%M:00')
+export TWO_HOURS_LATER=$(date -u --date='2 hours' '+%Y-%m-%dT%H:%M:00')
+
 aws application-autoscaling put-scheduled-action \
   --service-namespace ecs \
   --scalable-dimension ecs:service:DesiredCount \
   --resource-id service/airflow/airflow-webserver \
   --scheduled-action-name scale-webserver-to-zero \
-  --schedule "at(${TWO_MINUTES_LATER})" \
+  --schedule "at(${TWO_HOURS_LATER})" \
   --scalable-target-action MinCapacity=0,MaxCapacity=0
-aws application-autoscaling describe-scheduled-actions --service-namespace ecs
-{
-    [
-        (..redacted)
-        {
-            "ScheduledActionName": "single-scalein-action-test",
-            "ScheduledActionARN": "arn:aws:autoscaling:us-east-1:***:scheduledAction:***:resource/ecs/service/airflow/airflow-webserver:scheduledActionName/single-scalein-action-test",
-            "ServiceNamespace": "ecs",
-            "Schedule": "at(2022-01-28T17:19:00)",
-            "ResourceId": "service/airflow/airflow-webserver",
-            "ScalableDimension": "ecs:service:DesiredCount",
-            "ScalableTargetAction": {
-                "MinCapacity": 1,
-                "MaxCapacity": 1
-            },
-            "CreationTime": "2022-01-28T16:50:07.802000+00:00"
-        }
-    ]
-}
 ```
-
-### Notes
-- To avoid name collisions with existing AWS resources, I often use `name_prefix` instead of `name` in the terraform configuration. This feature is especially useful for resources like SecretManager secrets, which require a 7 day wait period before full deletion.
