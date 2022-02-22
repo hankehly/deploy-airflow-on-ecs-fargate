@@ -33,7 +33,7 @@ These configuration examples should prove helpful even to those who aren't runni
 
 ### Project structure
 
-Please see the following tree for a description of each main directory/file. This layout is not based on any standard. One could move the contents of `scripts` into `deploy_airflow_on_ecs_fargate`. Files named `*_config.py` could be placed in a separate `config` directory. The location of a file is less important than the quality of the code inside it.
+Please see the following tree for a description of the main directories/files. This layout is not based on any standard. One could move the contents of `scripts` into `deploy_airflow_on_ecs_fargate`. Files named `*_config.py` could be placed in a separate `config` directory. The location of a file is less important than the quality of the code inside it.
 
 ```
 ├── build .............................. anything related to building container images
