@@ -1,4 +1,4 @@
-# A subnet group for our RDS instance
+# A subnet group for our RDS instance.
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_subnet_group
 resource "aws_db_subnet_group" "airflow_metadata_db" {
   name_prefix = "airflow-metadata-db-"
@@ -6,7 +6,7 @@ resource "aws_db_subnet_group" "airflow_metadata_db" {
 }
 
 # A security group to attach to our RDS instance.
-# Should allow incoming access on var.metadata_db.port from our airflow services.
+# It should allow incoming access on var.metadata_db.port from our airflow services.
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group
 resource "aws_security_group" "airflow_metadata_db" {
   name_prefix = "airflow-metadata-db-"
@@ -32,7 +32,7 @@ resource "aws_security_group" "airflow_metadata_db" {
   }
 }
 
-# A tiny postgres RDS instance for airflow metadata
+# A postgres RDS instance for airflow metadata.
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/db_instance
 resource "aws_db_instance" "airflow_metadata_db" {
   identifier_prefix      = "airflow-metadata-db-"
@@ -44,12 +44,10 @@ resource "aws_db_instance" "airflow_metadata_db" {
   instance_class         = "db.t4g.micro"
   publicly_accessible    = false
   vpc_security_group_ids = [aws_security_group.airflow_metadata_db.id]
-  # Credentials for demonstration purposes only.
-  # Not suitable for production.
-  apply_immediately   = true
-  skip_final_snapshot = true
-  db_name             = var.metadata_db.db_name
-  username            = var.metadata_db.username
-  password            = var.metadata_db.password
-  port                = var.metadata_db.port
+  apply_immediately      = true
+  skip_final_snapshot    = true
+  db_name                = var.metadata_db.db_name
+  username               = var.metadata_db.username
+  password               = var.metadata_db.password
+  port                   = var.metadata_db.port
 }

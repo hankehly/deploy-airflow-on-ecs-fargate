@@ -60,36 +60,7 @@ locals {
   }
 }
 
-resource "aws_glue_catalog_table" "airflow_worker_logs" {
-  name          = "airflow_worker_logs"
-  database_name = aws_glue_catalog_database.main.name
-  table_type    = local.table_type
-  parameters = merge(
-    local.parameters,
-    { "storage.location.template" = "s3://${aws_s3_bucket.airflow.bucket}/kinesis-firehose/airflow-worker/$${datehour}/" }
-  )
-  storage_descriptor {
-    location      = "s3://${aws_s3_bucket.airflow.bucket}/kinesis-firehose/airflow-worker"
-    input_format  = local.storage_descriptor.input_format
-    output_format = local.storage_descriptor.output_format
-    ser_de_info {
-      serialization_library = local.storage_descriptor.ser_de_info.serialization_library
-      parameters            = local.storage_descriptor.ser_de_info.parameters
-    }
-    dynamic "columns" {
-      for_each = local.storage_descriptor.columns
-      content {
-        name = columns.value["name"]
-        type = columns.value["type"]
-      }
-    }
-  }
-  partition_keys {
-    name = "datehour"
-    type = "string"
-  }
-}
-
+# A glue catalog table to hold airflow standalone task logs sent from kinesis firehose
 resource "aws_glue_catalog_table" "airflow_standalone_task_logs" {
   name          = "airflow_standalone_task_logs"
   database_name = aws_glue_catalog_database.main.name

@@ -1,4 +1,3 @@
-# Common Kinesis Firehose role
 resource "aws_iam_role" "airflow_firehose" {
   name_prefix = "airflow-firehose-"
   assume_role_policy = jsonencode({
@@ -15,7 +14,8 @@ resource "aws_iam_role" "airflow_firehose" {
   })
 }
 
-# Permissions for firehose to access S3
+# Allow firehost to access S3.
+# In a production environment, one may want to limit access to a specific key.
 # https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html
 resource "aws_iam_policy" "airflow_firehose" {
   name_prefix = "airflow-firehose-"
@@ -36,9 +36,6 @@ resource "aws_iam_policy" "airflow_firehose" {
         ],
         Resource = [
           aws_s3_bucket.airflow.arn,
-          # In a production environment, you may want to further restrict access to the
-          # bucket by specifying a prefix. For this demonstration, we grant Kinesis
-          # access to all directories
           "${aws_s3_bucket.airflow.arn}/*",
         ]
       }

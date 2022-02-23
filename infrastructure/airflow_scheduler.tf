@@ -1,15 +1,14 @@
-# Send scheduler logs to this Cloud Watch log group
 resource "aws_cloudwatch_log_group" "airflow_scheduler" {
   name_prefix       = "/deploy-airflow-on-ecs-fargate/airflow-scheduler/"
   retention_in_days = 1
 }
 
-# Send scheduler logs to this Cloud Watch log group
 resource "aws_cloudwatch_log_group" "airflow_scheduler_cloudwatch_agent" {
   name_prefix       = "/deploy-airflow-on-ecs-fargate/airflow-scheduler-cloudwatch-agent/"
   retention_in_days = 1
 }
 
+# The CloudWatch agent configuration file for sending Airflow statsd metrics to CloudWatch.
 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Agent-Configuration-File-Details.html
 resource "aws_ssm_parameter" "airflow_ecs_cloudwatch_agent_config" {
   name        = "airflow-ecs-cloudwatch-agent-config"
@@ -36,8 +35,6 @@ resource "aws_ssm_parameter" "airflow_ecs_cloudwatch_agent_config" {
   )
 }
 
-# Scheduler service task definition
-# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_task_definition
 resource "aws_ecs_task_definition" "airflow_scheduler" {
   family             = "airflow-scheduler"
   cpu                = 1024
@@ -67,7 +64,8 @@ resource "aws_ecs_task_definition" "airflow_scheduler" {
       }
       essential = true
       command   = ["scheduler"]
-      # Start the init process inside the container to remove any zombie SSM agent child processes found
+      # Because we allow login via ECS exec, start the init process inside the container to remove any
+      # zombie SSM agent child processes found.
       # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html#ecs-exec-task-definition
       linuxParameters = {
         initProcessEnabled = true
@@ -104,7 +102,6 @@ resource "aws_ecs_task_definition" "airflow_scheduler" {
   }])
 }
 
-# Scheduler service security group (no incoming connections)
 resource "aws_security_group" "airflow_scheduler_service" {
   name_prefix = "airflow-scheduler-"
   description = "Deny all incoming traffic"
@@ -117,14 +114,12 @@ resource "aws_security_group" "airflow_scheduler_service" {
   }
 }
 
-# Airflow ECS scheduler service
-# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_service
 resource "aws_ecs_service" "airflow_scheduler" {
   name = "airflow-scheduler"
-  # If a revision is not specified, the latest ACTIVE revision is used.
+  # Note: If a revision is not specified, the latest ACTIVE revision is used.
   task_definition = aws_ecs_task_definition.airflow_scheduler.family
   cluster         = aws_ecs_cluster.airflow.arn
-  # If using awsvpc network mode, do not specify this role.
+  # Note: If using awsvpc network mode, do not specify iam_role.
   # iam_role =
   deployment_controller {
     type = "ECS"
@@ -138,27 +133,15 @@ resource "aws_ecs_service" "airflow_scheduler" {
   enable_execute_command = true
   launch_type            = "FARGATE"
   network_configuration {
-    subnets = [aws_subnet.public_a.id, aws_subnet.public_b.id]
-    # For tasks on Fargate, in order for the task to pull the container image it must either
-    # 1. use a public subnet and be assigned a public IP address
-    # 2. use a private subnet that has a route to the internet or a NAT gateway
+    subnets          = [aws_subnet.public_a.id, aws_subnet.public_b.id]
     assign_public_ip = true
     security_groups  = [aws_security_group.airflow_scheduler_service.id]
   }
-  platform_version    = "1.4.0"
-  scheduling_strategy = "REPLICA"
-  # This can be used to update tasks to use a newer container image with same
-  # image/tag combination (e.g., myimage:latest)
+  platform_version     = "1.4.0"
+  scheduling_strategy  = "REPLICA"
   force_new_deployment = var.force_new_ecs_service_deployment
 }
 
-# For this example, we want to save money by scaling to zero at night when we don't need to access the service.
-# Target registration:
-#  https://docs.aws.amazon.com/autoscaling/application/userguide/services-that-can-integrate-ecs.html#integrate-register-ecs
-# Example scaling configurations:
-#  https://docs.aws.amazon.com/autoscaling/application/userguide/examples-scheduled-actions.html
-# ECS scheduled scaling example:
-#  https://aws.amazon.com/blogs/containers/optimizing-amazon-elastic-container-service-for-cost-using-scheduled-scaling/
 resource "aws_appautoscaling_target" "airflow_scheduler" {
   max_capacity       = 1
   min_capacity       = 0
@@ -173,9 +156,7 @@ resource "aws_appautoscaling_scheduled_action" "airflow_scheduler_scheduled_scal
   service_namespace  = aws_appautoscaling_target.airflow_scheduler.service_namespace
   resource_id        = aws_appautoscaling_target.airflow_scheduler.resource_id
   scalable_dimension = aws_appautoscaling_target.airflow_scheduler.scalable_dimension
-  # Gotcha: Cron expressions have SIX required fields
-  # https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions
-  schedule = "cron(0 12 * * ? *)"
+  schedule           = "cron(0 12 * * ? *)"
   scalable_target_action {
     min_capacity = 0
     max_capacity = 0
@@ -188,15 +169,12 @@ resource "aws_appautoscaling_scheduled_action" "airflow_scheduler_scheduled_scal
   service_namespace  = aws_appautoscaling_target.airflow_scheduler.service_namespace
   resource_id        = aws_appautoscaling_target.airflow_scheduler.resource_id
   scalable_dimension = aws_appautoscaling_target.airflow_scheduler.scalable_dimension
-  # Gotcha: Cron expressions have SIX required fields
-  # https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions
-  schedule = "cron(0 3 * * ? *)"
+  schedule           = "cron(0 3 * * ? *)"
   scalable_target_action {
     min_capacity = 1
     max_capacity = 1
   }
   depends_on = [
-    # Prevent a `ConcurrentUpdateException` by forcing sequential changes to autoscaling policies
     aws_appautoscaling_scheduled_action.airflow_scheduler_scheduled_scale_in
   ]
 }

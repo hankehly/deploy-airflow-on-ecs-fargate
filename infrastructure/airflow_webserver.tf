@@ -1,4 +1,3 @@
-# A security group to attach to our webserver ALB to allow all incoming HTTP requests
 resource "aws_security_group" "airflow_webserver_alb" {
   name_prefix = "airflow-webserver-alb-"
   description = "Allow TLS inbound traffic"
@@ -17,20 +16,19 @@ resource "aws_security_group" "airflow_webserver_alb" {
   }
 }
 
-# The ALB for our webserver service
 resource "aws_lb" "airflow_webserver" {
   name               = "airflow-webserver"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.airflow_webserver_alb.id]
-  # Skip for demo
-  # access_logs { }
-  subnets         = [aws_subnet.public_a.id, aws_subnet.public_b.id]
-  ip_address_type = "ipv4"
+  subnets            = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+  ip_address_type    = "ipv4"
 }
 
-# Webserver service target group to route traffic from ALB listener to ECS service
-# Flow: Internet -> ALB -> Listener -> Target Group -> ECS Service
+# The webserver service target group to route traffic from the ALB listener to the
+# webserver ECS service.
+# The flow of traffic is:
+#   Internet -> ALB -> Listener -> Target Group -> ECS Service
 # Note: ECS registers targets automatically, so we do not need to define them.
 resource "aws_lb_target_group" "airflow_webserver" {
   name        = "airflow-webserver"
@@ -41,15 +39,13 @@ resource "aws_lb_target_group" "airflow_webserver" {
   health_check {
     enabled = true
     path    = "/health"
-    # Gotcha: interval must be greater than timeout
+    # Note: 'interval' must be greater than 'timeout'
     interval            = 30
     timeout             = 10
     unhealthy_threshold = 5
   }
 }
 
-# Listener to forward traffic from ALB to webserver service target group
-# Flow: Internet -> ALB -> Listener -> Target Group -> ECS Service
 resource "aws_lb_listener" "airflow_webserver" {
   load_balancer_arn = aws_lb.airflow_webserver.arn
   port              = "80"
@@ -60,14 +56,11 @@ resource "aws_lb_listener" "airflow_webserver" {
   }
 }
 
-# Send webserver logs to this Cloud Watch log group
 resource "aws_cloudwatch_log_group" "airflow_webserver" {
   name_prefix       = "/deploy-airflow-on-ecs-fargate/airflow-webserver/"
   retention_in_days = 1
 }
 
-# Webserver task definition
-# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_task_definition
 resource "aws_ecs_task_definition" "airflow_webserver" {
   family             = "airflow-webserver"
   cpu                = 1024
@@ -77,7 +70,9 @@ resource "aws_ecs_task_definition" "airflow_webserver" {
   network_mode       = "awsvpc"
   runtime_platform {
     operating_system_family = "LINUX"
-    cpu_architecture        = "X86_64"
+    # ARM64 currently does not work because of upstream dependencies
+    # https://github.com/apache/airflow/issues/15635
+    cpu_architecture = "X86_64"
   }
   requires_compatibilities = ["FARGATE"]
   container_definitions = jsonencode([
@@ -103,8 +98,6 @@ resource "aws_ecs_task_definition" "airflow_webserver" {
         timeout  = 30
         retries  = 5
       }
-      # Start the init process inside the container to remove any zombie SSM agent child processes found
-      # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-exec.html#ecs-exec-task-definition
       linuxParameters = {
         initProcessEnabled = true
       }
@@ -124,7 +117,6 @@ resource "aws_ecs_task_definition" "airflow_webserver" {
   ])
 }
 
-# Webserver service security group to allow access from load balancer
 resource "aws_security_group" "airflow_webserver_service" {
   name_prefix = "airflow-webserver-service-"
   description = "Allow HTTP inbound traffic from load balancer"
@@ -144,15 +136,11 @@ resource "aws_security_group" "airflow_webserver_service" {
   }
 }
 
-# Airflow webserver service
-# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/ecs_service
 resource "aws_ecs_service" "airflow_webserver" {
   name = "airflow-webserver"
-  # If a revision is not specified, the latest ACTIVE revision is used.
+  # Note: If a revision number is not specified, the latest ACTIVE revision is used.
   task_definition = aws_ecs_task_definition.airflow_webserver.family
   cluster         = aws_ecs_cluster.airflow.arn
-  # If using awsvpc network mode, do not specify this role.
-  # iam_role =
   deployment_controller {
     type = "ECS"
   }
@@ -166,9 +154,9 @@ resource "aws_ecs_service" "airflow_webserver" {
   launch_type            = "FARGATE"
   network_configuration {
     subnets = [aws_subnet.public_a.id, aws_subnet.public_b.id]
-    # For tasks on Fargate, in order for the task to pull the container image it must either
-    # 1. use a public subnet and be assigned a public IP address
-    # 2. use a private subnet that has a route to the internet or a NAT gateway
+    # In order for a Fargate task to pull the container image, it must either
+    #  1. use a public subnet and be assigned a public IP address
+    #  2. use a private subnet that has a route to the internet or a NAT gateway
     assign_public_ip = true
     security_groups  = [aws_security_group.airflow_webserver_service.id]
   }
@@ -184,13 +172,14 @@ resource "aws_ecs_service" "airflow_webserver" {
   force_new_deployment = var.force_new_ecs_service_deployment
 }
 
-# For this example, we want to save money by scaling to zero at night when we don't need to access the service.
-# Target registration:
-#  https://docs.aws.amazon.com/autoscaling/application/userguide/services-that-can-integrate-ecs.html#integrate-register-ecs
-# Example scaling configurations:
-#  https://docs.aws.amazon.com/autoscaling/application/userguide/examples-scheduled-actions.html
-# ECS scheduled scaling example:
-#  https://aws.amazon.com/blogs/containers/optimizing-amazon-elastic-container-service-for-cost-using-scheduled-scaling/
+# An example of scaling to zero at night when we don't need to access to the UI.
+# Here are some helpful documentation links:
+#   Target registration:
+#   - https://docs.aws.amazon.com/autoscaling/application/userguide/services-that-can-integrate-ecs.html#integrate-register-ecs
+#   Example scaling configurations:
+#   - https://docs.aws.amazon.com/autoscaling/application/userguide/examples-scheduled-actions.html
+#   ECS scheduled scaling example:
+#   - https://aws.amazon.com/blogs/containers/optimizing-amazon-elastic-container-service-for-cost-using-scheduled-scaling/
 resource "aws_appautoscaling_target" "airflow_webserver" {
   max_capacity       = 1
   min_capacity       = 0
@@ -220,9 +209,7 @@ resource "aws_appautoscaling_scheduled_action" "airflow_webserver_scheduled_scal
   service_namespace  = aws_appautoscaling_target.airflow_webserver.service_namespace
   resource_id        = aws_appautoscaling_target.airflow_webserver.resource_id
   scalable_dimension = aws_appautoscaling_target.airflow_webserver.scalable_dimension
-  # Gotcha: Cron expressions have SIX required fields
-  # https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions
-  schedule = "cron(0 3 * * ? *)"
+  schedule           = "cron(0 3 * * ? *)"
   scalable_target_action {
     min_capacity = 1
     max_capacity = 1

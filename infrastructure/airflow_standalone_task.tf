@@ -1,4 +1,3 @@
-# Firehose delivery stream for standalone task logs
 resource "aws_kinesis_firehose_delivery_stream" "airflow_standalone_task_stream" {
   name        = "deploy-airflow-on-ecs-fargate-airflow-standalone-task-stream"
   destination = "extended_s3"
@@ -10,14 +9,14 @@ resource "aws_kinesis_firehose_delivery_stream" "airflow_standalone_task_stream"
   }
 }
 
-# Send fluentbit logs to Cloud Watch
+# Logs from the fluentbit container (not our application) go to CloudWatch
 resource "aws_cloudwatch_log_group" "airflow_standalone_task_fluentbit" {
   name_prefix       = "/deploy-airflow-on-ecs-fargate/airflow-standalone-task-fluentbit/"
   retention_in_days = 1
 }
 
-# A security group for our standalone tasks
-# We specify this not in our task definition, but when making calls to the "run-task" API
+# A security group for our standalone tasks.
+# We use this when making calls to the "run-task" API, not in our task definition.
 resource "aws_security_group" "airflow_standalone_task" {
   name        = "airflow-standalone-task"
   description = "Deny all incoming traffic"
@@ -30,8 +29,8 @@ resource "aws_security_group" "airflow_standalone_task" {
   }
 }
 
-# Standalone task template. Override container definition parameters like "command"
-# when making calls to run-task API.
+# The standalone task template. Override container definition parameters like command,
+# cpu and memory when making calls to the run-task API.
 resource "aws_ecs_task_definition" "airflow_standalone_task" {
   family             = "airflow-standalone-task"
   cpu                = 256
@@ -54,25 +53,24 @@ resource "aws_ecs_task_definition" "airflow_standalone_task" {
       command     = ["version"]
       environment = local.airflow_task_common_environment
       user        = "50000:0"
-      # Example forwarding logs to a sidecar fluent-bit log router
+      # Here is an example of how to forward logs to a sidecar fluentbit log router.
       # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/firelens-example-taskdefs.html#firelens-example-firehose
       logConfiguration = {
         # The awsfirelens log driver is syntactic sugar for the Task Definition.
         # It allows you to specify Fluentd or Fluent Bit output plugin configuration.
         # https://aws.amazon.com/blogs/containers/under-the-hood-firelens-for-amazon-ecs-tasks/
         logDriver = "awsfirelens"
-        # The Name field defines the plugin. Options are firehose or kinesis_firehose.
-        # firehose is written in golang, while kinesis_firehost in C; but only the golang version
-        # has support for millisecond time_key_format.
-        #  Error: unable to apply log options of container metrics to fireLens config: missing output key Name which is required
-        # Amazon Kinesis Data Firehose output plugin configuration parameters
+        # The required 'Name' field defines the plugin. Options are 'firehose' or 'kinesis_firehose'.
+        # The 'firehose' plugin is written in golang, while 'kinesis_firehost' in C; but
+        # only the golang version has support for millisecond time_key_format.
+        # Here is a list of Amazon Kinesis Data Firehose output plugin configuration parameters:
         # https://docs.fluentbit.io/manual/pipeline/outputs/firehose#configuration-parameters
         options = {
           Name            = "firehose"
           region          = var.aws_region
           delivery_stream = aws_kinesis_firehose_delivery_stream.airflow_standalone_task_stream.name
-          # Gotcha: You need to set the time_key property to add the timestamp to the log record.
-          # By default the timestamp from Fluent Bit will not be added to records sent to Kinesis.
+          # Note: You need to set the 'time_key' property to add a timestamp to the log record.
+          # By default the timestamp from fluentbit will NOT be added to records sent to Kinesis.
           time_key = "timestamp"
           # Add millisecond precision to timestamp (default is second precision)
           time_key_format = "%Y-%m-%dT%H:%M:%S.%L"
