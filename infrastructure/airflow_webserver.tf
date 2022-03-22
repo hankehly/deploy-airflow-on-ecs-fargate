@@ -188,34 +188,30 @@ resource "aws_appautoscaling_target" "airflow_webserver" {
   service_namespace  = "ecs"
 }
 
-# Scale to zero at night (21:00 Japan Standard Time)
+# Scale to zero at night (22:00 Japan Standard Time)
 resource "aws_appautoscaling_scheduled_action" "airflow_webserver_scheduled_scale_in" {
-  name               = "ecs"
+  name               = "airflow-webserver-scheduled-scale-in"
   service_namespace  = aws_appautoscaling_target.airflow_webserver.service_namespace
   resource_id        = aws_appautoscaling_target.airflow_webserver.resource_id
   scalable_dimension = aws_appautoscaling_target.airflow_webserver.scalable_dimension
   # Gotcha: Cron expressions have SIX required fields
   # https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions
-  schedule = "cron(0 12 * * ? *)"
+  schedule = "cron(0 13 * * ? *)"
   scalable_target_action {
     min_capacity = 0
     max_capacity = 0
   }
 }
 
-# Scale to one during the day (10:00 Japan Standard Time)
+# Scale to one during the day (8:00 Japan Standard Time)
 resource "aws_appautoscaling_scheduled_action" "airflow_webserver_scheduled_scale_out" {
-  name               = "ecs"
+  name               = "airflow-webserver-scheduled-scale-out"
   service_namespace  = aws_appautoscaling_target.airflow_webserver.service_namespace
   resource_id        = aws_appautoscaling_target.airflow_webserver.resource_id
   scalable_dimension = aws_appautoscaling_target.airflow_webserver.scalable_dimension
-  schedule           = "cron(0 3 * * ? *)"
+  schedule           = "cron(0 23 * * ? *)"
   scalable_target_action {
     min_capacity = 1
     max_capacity = 1
   }
-  depends_on = [
-    # Prevent a `ConcurrentUpdateException` by forcing sequential changes to autoscaling policies
-    aws_appautoscaling_scheduled_action.airflow_webserver_scheduled_scale_in
-  ]
 }
